@@ -27,14 +27,14 @@
 }
 
 #let _make_cls(new, name, fields, methods, tag) = {
-    let out = (new: new, name: name, fields: fields, methods: methods, tag: tag, __kidger_sentinel_is_class: true)
+    let out = (new: new, name: name, fields: fields, methods: methods, tag: tag, __typsy_sentinel_is_class: true)
     // Make it possible to use classes in pattern-matching.
     // We inspect specifically the `new` field as that should be enough to get uniqueness; in particular it closes over
     // `tag`.
     out + Dictionary(meta: Dictionary(cls: Dictionary(new: Literal(new), ..Any), ..Any), ..Any)
 }
 // Used for pattern-matching class objects themselves.
-#let Class = Dictionary(__kidger_sentinel_is_class: Literal(true), ..Any)
+#let Class = Dictionary(__typsy_sentinel_is_class: Literal(true), ..Any)
 
 #let _class_or_namespace(name: none, fields: none, methods: none, tag: none, call_on_dict: none) = {
     if name != none {

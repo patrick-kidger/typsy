@@ -55,7 +55,7 @@
             repr(pattern),
         )
     }
-    (pattern.__kidger_sentinel_match.match)(obj)
+    (pattern.__typsy_sentinel_match.match)(obj)
 }
 
 /// Used with `match`.
@@ -101,7 +101,7 @@
     panic-fmt("Did not match any case. Value was `{}`.", repr(obj))
 }
 
-#let _match(match) = (__kidger_sentinel_match: (match: match))
+#let _match(match) = (__typsy_sentinel_match: (match: match))
 #let _match_type(typ) = _match(obj => type(obj) == typ)
 
 //
@@ -154,7 +154,7 @@
     if named.len() == 0 {
         _match(obj => type(obj) == array and pos.len() == obj.len() and pos.zip(obj).all(_unpack(matches)))
     } else {
-        if named.keys() == ("__kidger_sentinel_match",) {
+        if named.keys() == ("__typsy_sentinel_match",) {
             if pos.len() == 0 and named == Any {
                 _match_type(array) // Fastpath
             } else {
@@ -193,7 +193,7 @@
     }
     let named = valtypes.named()
     let valtype = (
-        __kidger_sentinel_match: named.remove("__kidger_sentinel_match", default: Never.__kidger_sentinel_match),
+        __typsy_sentinel_match: named.remove("__typsy_sentinel_match", default: Never.__typsy_sentinel_match),
     )
     if valtype == Any and named.len() == 0 { return _match_type(dictionary) } // Fastpath
     if valtype == Any and named.len() == 1 { // Fastpath for a particularly common case.
@@ -207,9 +207,9 @@
     ))
 }
 /// For use with `Arguments`.
-#let Pos(eltype) = (__kidger_sentinel_pos: eltype)
+#let Pos(eltype) = (__typsy_sentinel_pos: eltype)
 /// For use with `Arguments`.
-#let Named(valtype) = (__kidger_sentinel_named: valtype)
+#let Named(valtype) = (__typsy_sentinel_named: valtype)
 /// *Usage:*
 ///
 /// - `Arguments(Str, Bool)` is a pattern that would match the `arguments` to `some-fn("foo", true)`.
@@ -226,9 +226,9 @@
 #let Arguments(..args) = {
     let named = args.named()
 
-    let var = named.remove("__kidger_sentinel_match", default: auto)
-    let varpos = named.remove("__kidger_sentinel_pos", default: auto)
-    let varnamed = named.remove("__kidger_sentinel_named", default: auto)
+    let var = named.remove("__typsy_sentinel_match", default: auto)
+    let varpos = named.remove("__typsy_sentinel_pos", default: auto)
+    let varnamed = named.remove("__typsy_sentinel_named", default: auto)
     let pos = if var == auto {
         if varpos == auto {
             Array(..args.pos())
@@ -237,7 +237,7 @@
         }
     } else {
         if varpos == auto {
-            Array(..args.pos(), __kidger_sentinel_match: var)
+            Array(..args.pos(), __typsy_sentinel_match: var)
         } else {
             panic-fmt(
                 "`Arguments` called with both variadic and variadic-positional arguments, e.g. "
@@ -253,7 +253,7 @@
         }
     } else {
         if varnamed == auto {
-            Dictionary(..named, __kidger_sentinel_match: var)
+            Dictionary(..named, __typsy_sentinel_match: var)
         } else {
             panic-fmt(
                 "`Arguments` called with both variadic and variadic-named arguments, e.g. "
