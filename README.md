@@ -196,10 +196,10 @@ All objects have detailed docstrings indicating their usage; see those for detai
 
 The examples above demonstrate nearly every object in the public API. In addition to those above, the list of patterns that can be used for pattern-matching are:
 ```typst
-Any, Arguments, Array, Bool, Bytes, Class, Content, Counter, Datetime, Decimal,
-Dictionary, Duration, Float, Function, Int, Label, Literal, Location, Module,
-Named, Never, None, Pos, Ratio, Refine, Regex, Selector, State, Str, Symbol,
-Type, Union, Version
+Any, Arguments, Array, Bool, Bytes, Class, Content, Counter, Datetime,
+Decimal, Dictionary, Duration, Float, Function, Int, Label, Literal,
+Location, Module, Named, Never, None, Pos, Ratio, Refine, Regex,
+Selector, State, Str, Symbol, Type, Union, Version
 ```
 (They are capitalised to distinguish them from the underlying type.)
 
