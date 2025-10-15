@@ -14,10 +14,10 @@
 #let TreeCounter = class(
     name: "TreeCounter",
     fields: (
-        display: function, /*self->str*/
-        get: function, /*self->array<int>*/
-        step: function, /*self->content*/
-        update: function, /*(self, union<int, function<int -> int>>)->content*/
+        display: Function, /*self->str*/
+        get: Function, /*self->array<int>*/
+        step: Function, /*self->content*/
+        update: Function, /*(self, union<int, function<int -> int>>)->content*/
     ),
     methods: (
         subcounter: (self, symbol /*function*/, numbering: ".1") => /*Counter*/ {

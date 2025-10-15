@@ -1,4 +1,4 @@
-#import "./classes.typ": _class_or_namespace, class
+#import "./classes.typ": _class_or_namespace, class, Int
 #import "./format.typ": panic-fmt
 
 #let _call_on_dict(self_dict) = {
@@ -58,13 +58,13 @@
 #let test-ns() = {
     let ns_test = namespace(
         Foo: ns => class(
-            fields: (x: int),
+            fields: (x: Int),
             methods: (
                 to_bar: self => ns("foo_to_bar")(self),
             ),
         ),
         Bar: ns => class(
-            fields: (y: int),
+            fields: (y: Int),
             methods: (
                 to_foo: self => (ns("Foo").new)(x: self.y),
             ),

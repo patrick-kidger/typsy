@@ -1,6 +1,6 @@
 [package]
 name = "typsy"
-version = "0.1.0"
+version = "0.2.0"
 entrypoint = "src/lib.typ"
 authors = ["Patrick Kidger <contact@kidger.site>"]
 license = "Apache-2.0"

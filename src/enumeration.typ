@@ -1,6 +1,6 @@
 #import "./match.typ": case, match, matches
 #import "./format.typ": panic-fmt
-#import "./classes.typ": Class, class
+#import "./classes.typ": Class, Int, class
 
 /// An enumeration over different classes.
 ///
@@ -8,8 +8,8 @@
 ///
 /// ```typst
 /// #let Shape = enumeration(
-///     Rectangle: class(fields: (height: int, width: int)),
-///     Circle: class(fields: (radius: int)),
+///     Rectangle: class(fields: (height: Int, width: Int)),
+///     Circle: class(fields: (radius: Int)),
 /// )
 ///
 /// #let area(x) = {
@@ -55,8 +55,8 @@
 
 #let test-pattern-match() = {
     let Shape = enumeration(
-        Rectangle: class(fields: (height: int, width: int)),
-        Circle: class(fields: (radius: int)),
+        Rectangle: class(fields: (height: Int, width: Int)),
+        Circle: class(fields: (radius: Int)),
     )
     let area(x) = {
         match(

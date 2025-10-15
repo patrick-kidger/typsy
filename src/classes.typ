@@ -1,16 +1,13 @@
 #import "./format.typ": panic-fmt
-#import "./match.typ": Any, Dictionary, Literal, matches
+#import "./match.typ": Any, Dictionary, Function, Int, Pattern, Literal, Str, matches
 
-/// - name (str):
-/// - value (any):
-/// - expected (type):
-#let _checktype(name, value, expected) = {
-    if type(value) != expected {
+#let _checktype(name, value, pattern) = {
+    if not matches(pattern, value) {
         panic-fmt(
-            "For `{}`, expected type `{}`, received type `{}`.",
+            "For `{}`, expected pattern `{}`, received `{}`.",
             name,
-            repr(expected),
-            repr(type(value)),
+            repr(pattern),
+            repr(value),
         )
     }
 }
@@ -38,18 +35,15 @@
 
 #let _class_or_namespace(name: none, fields: none, methods: none, tag: none, call_on_dict: none) = {
     if name != none {
-        _checktype("name", name, str)
+        _checktype("name", name, Str)
     }
-    _checktype("fields", fields, dictionary)
-    _checktype("methods", methods, dictionary)
+    _checktype("fields", fields, Dictionary(..Any))
+    _checktype("methods", methods, Dictionary(..Any))
     let methods_keys = methods.keys()
     let reserved_fields = ("meta",)
-    for (argname, kind) in fields.pairs() {
-        _checktype(argname, argname, str)
-        _checktype(argname, kind, type)
-        if kind == auto {
-            panic-fmt("For argname {}: `auto` is not a valid type annotation", argname)
-        }
+    for (argname, pattern) in fields.pairs() {
+        _checktype(argname, argname, Str)
+        _checktype(argname, pattern, Pattern)
         if methods_keys.contains(argname) {
             panic-fmt("`{}` is present in both `fields` and `methods`", argname)
         }
@@ -58,8 +52,8 @@
         }
     }
     for (methodname, method) in methods.pairs() {
-        _checktype(methodname, methodname, str)
-        _checktype(methodname, method, function)
+        _checktype(methodname, methodname, Str)
+        _checktype(methodname, method, Function)
         if reserved_fields.contains(methodname) {
             panic-fmt("`{}` is reserved and cannot be used in `methods`.", methodname)
         }
@@ -122,7 +116,7 @@
 /// ```typst
 /// #{
 /// let Adder = class(
-///     fields: (x: int),
+///     fields: (x: Int),
 ///     methods: (
 ///         add: (self, y) => {self.x + y}
 ///     )
@@ -160,7 +154,7 @@
 
 #let test-doc() = {
     let Adder = class(
-        fields: (x: int),
+        fields: (x: Int),
         methods: (
             add: (self, y) => { self.x + y },
         ),
@@ -171,19 +165,19 @@
 }
 
 #let test-basic() = {
-    let ArgTest = class(fields: (x: int))
+    let ArgTest = class(fields: (x: Int))
     let foo = (ArgTest.new)(x: 3)
     assert.eq(foo.x, 3)
 }
 
 #let panic-on-basic() = {
-    let ArgTest = class(fields: (x: int))
+    let ArgTest = class(fields: (x: Int))
     let foo = (ArgTest.new)(x: "not an int")
 }
 
 #let test-self-recursive() = {
     let self_recursive_construct_test = class(
-        fields: (x: int),
+        fields: (x: Int),
         methods: (
             add_one: self => {
                 (self.meta.cls.new)(x: self.x + 1)
@@ -195,7 +189,7 @@
 
 #let test-mutually-recursive-methods() = {
     let mutally_recursive_methods_test = class(
-        fields: (x: int),
+        fields: (x: Int),
         methods: (
             baz: (self, x) => {
                 (self.bar)(x)
@@ -233,14 +227,14 @@
         methods: (
             Foo: ns => class(
                 name: "Foo",
-                fields: (x: int),
+                fields: (x: Int),
                 methods: (
                     to_bar: self => ((ns.Bar)().new)(y: self.x),
                 ),
             ),
             Bar: ns => class(
                 name: "Bar",
-                fields: (y: int),
+                fields: (y: Int),
                 methods: (
                     to_foo: self => ((ns.Foo)().new)(x: self.y),
                 ),
@@ -257,10 +251,10 @@
 }
 
 #let test-pattern-match-instances() = {
-    let Foo = class(fields: (x: int))
-    let Bar1 = class(fields: (y: int), tag: () => {})
-    let Bar2 = class(fields: (y: int), tag: () => {})
-    let Bar3 = class(fields: (y: int))
+    let Foo = class(fields: (x: Int))
+    let Bar1 = class(fields: (y: Int), tag: () => {})
+    let Bar2 = class(fields: (y: Int), tag: () => {})
+    let Bar3 = class(fields: (y: Int))
 
     let x = (Foo.new)(x: 3)
     let y1 = (Bar1.new)(y: 4)
@@ -288,14 +282,14 @@
     assert(matches(Bar3, y3))
 
     // Identical classes
-    let bar4 = class(fields: (y: int))
+    let bar4 = class(fields: (y: Int))
     assert(matches(bar4, y3))
 }
 
 #let test-pattern-match-class-object() = {
     assert(matches(Class, class()))
     assert(matches(Class, class(name: "hi")))
-    assert(matches(Class, class(fields: (x: int))))
+    assert(matches(Class, class(fields: (x: Int))))
     assert(not matches(Class, 4.0))
     assert(not matches(Class, (name: "hi")))
 }

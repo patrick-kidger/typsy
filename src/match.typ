@@ -131,6 +131,16 @@
 #let Symbol = _match_type(symbol)
 #let Type = _match_type(type)
 #let Version = _match_type(version)
+/// Matches pattern objects themselves. Does *not* go via `Dictionary` because we're actually looking for the sentinel
+// key that `Dictionary` uses to identify its default value.
+#let Pattern = _match(x => (
+    type(x) == dictionary
+        and x.keys() == ("__typsy_sentinel_match",)
+        and type(x.__typsy_sentinel_match) == dictionary
+        and x.__typsy_sentinel_match.keys() == ("match",)
+        and type(x.__typsy_sentinel_match.match) == function
+))
+
 
 //
 // Generic types
@@ -196,7 +206,8 @@
         __typsy_sentinel_match: named.remove("__typsy_sentinel_match", default: Never.__typsy_sentinel_match),
     )
     if valtype == Any and named.len() == 0 { return _match_type(dictionary) } // Fastpath
-    if valtype == Any and named.len() == 1 { // Fastpath for a particularly common case.
+    if valtype == Any and named.len() == 1 {
+        // Fastpath for a particularly common case.
         let ((key, pat),) = named.pairs()
         return _match(obj => type(obj) == dictionary and obj.keys().contains(key) and matches(pat, obj.at(key)))
     }
@@ -409,6 +420,13 @@
 
     assert(matches(Version, version(0, 1, 2)))
     assert(not matches(Version, (0, 1, 2)))
+
+    assert(matches(Pattern, Any))
+    assert(matches(Pattern, Int))
+    assert(matches(Pattern, Function))
+    assert(matches(Pattern, Dictionary(x: Int)))
+    assert(not matches(Pattern, int))
+    assert(not matches(Pattern, (x: 3)))
 }
 
 #let test-location() = {
