@@ -4,12 +4,35 @@
 #import "./safe-counters.typ": safe-counter
 #import "./typecheck.typ": typecheck
 
-#let _check_update(value) = {
-    let error_msg = "`The `value` in `(counter.update)(value)` must either be an `int`, or a function `int -> int`."
-    if not (int, function).contains(type(value)) {panic-fmt(error_msg)}
-    if type(value) == function {value = typecheck(Arguments(Int), Int, value, invalid-return: (_, _) => error_msg)}
+/// - value (int, function)
+/// - default (none, int)
+#let _check_update(value, default) = {
+    if type(value) == function {
+        if default != none {
+            value = x => value(x + default) - default
+        }
+        value = typecheck(Arguments(Int), Int, value, invalid-return: (_, _) => error_msg) 
+    } else if type(value) == int {
+        if default != none {
+            value = value - default
+        }
+    } else {
+        panic-fmt("`The `value` in `(counter.update)(value)` must either be an `int`, or a function `int -> int`.")
+    }
     value
 }
+
+/// - numbers (array<..int>)
+/// - default (none, int)
+#let _offset(numbers, default) = {
+    if default == none {
+        numbers
+    } else {
+        assert.eq(numbers.len(), 1)
+        (numbers.at(0) + default,)
+    }
+}
+
 
 #let TreeCounter = class(
     name: "TreeCounter",
@@ -20,7 +43,7 @@
         update: Function, /*(self, union<int, function<int -> int>>)->content*/
     ),
     methods: (
-        subcounter: (self, symbol /*function*/, numbering: ".1") => /*Counter*/ {
+        subcounter: (self, symbol /*function*/, numbering: ".1", default: 0) => /*Counter*/ {
             let get_raw_counter() = {
                 let parent_index = (self.get)().map(str).join(".")
                 // This is a sneaky undocumented (but tested) usage of `safe-counter`.
@@ -29,10 +52,10 @@
             let display(_) = {
                 (self.display)() + get_raw_counter().display(numbering)
             }
-            let get(_) = (self.get)() + get_raw_counter().get()
+            let get(_) = (self.get)() + _offset(get_raw_counter().get(), default)
             // `step` needs `context` as it needs to resolve its parent counter via `parent.get()`.
             let step(_) = context get_raw_counter().step()
-            let update(_, value) = get_raw_counter().update(_check_update(value))
+            let update(_, value) = context get_raw_counter().update(_check_update(value, default))
             (self.meta.cls.new)(display: display, get: get, step: step, update: update)
         },
         take: self => /*content*/ {
@@ -45,10 +68,11 @@
 /// - raw_counter (counter):
 /// - level (int):
 /// - get_numbering (function): ()->union(str,function)
-#let _tree-counter(raw_counter, level, get_numbering) = {
+/// - default (none, int): default value for the counter.
+#let _tree-counter(raw_counter, level, get_numbering, default) = {
     let display = self => numbering(get_numbering(), ..(self.get)())
     let get(self) = {
-        let raw_get = raw_counter.get()
+        let raw_get = _offset(raw_counter.get(), default)
         let diff = level - raw_get.len()
         if diff <= 0 {
             raw_get.slice(0, level)
@@ -58,7 +82,7 @@
     }
     let step = self => raw_counter.step(level: level)
     let update(self, value) = {
-        raw_counter.update(_check_update(value))
+        raw_counter.update(_check_update(value, default))
     }
     (TreeCounter.new)(display: display, get: get, step: step, update: update)
 }
@@ -84,6 +108,7 @@
 ///
 /// 1. To create a brand-new counter: `tree-counter(()=>{})`
 ///     - with non-default numbering: `tree-counter(()=>{}, numbering: "A.")`.
+///     - with non-zero default: `tree-counter(()=>{}, default: 3)`.
 /// 2. Track an existing counter at some level: `tree-counter(some-counter, level: )`
 ///     - with non-default numbering: `tree-counter(some-counter, level: , numbering: "A.")`.
 /// 3. To track the `heading` counter at some level: `tree-counter(heading, level: )`.
@@ -120,9 +145,10 @@
 /// - `(self.get)()`: as the usual `counter.get`.
 /// - `(self.step)()`: as the usual `counter.step`.
 ///     Note that this does not take a `level` argument. Create a `.subcounter` instead.
-/// - `(self.subcounter)(()=>{}, numbering: ".1")`: the star of the show! This creates a subcounter. The first
-///     argument should be specifically `()=>{}`, in the same way as described for the main constructor. The numbering
-///     is optional and used when `.display`ing the subcouter.
+/// - `(self.subcounter)(()=>{}, numbering: ".1", default : 0)`: the star of the show! This creates a subcounter. The
+///     first argument should be specifically `()=>{}`, in the same way as described for the main constructor. The
+///     numbering is optional and used when `.display`ing the subcounter. The default is the initial value of the
+///     counter.
 /// - `(self.take)()`: this is a useful shorthand for `(self.step)()` followed by `(self.display)()`.
 /// - `(self.update)(value)`: as the usual `counter.update`.
 ///
@@ -142,16 +168,22 @@
     if matches(Arguments(Literal(heading), level: Int), args) or matches(Arguments(Literal(heading)), args) {
         // Track heading counter
         let get_numbering = () => if heading.numbering == none { _default-numbering } else { heading.numbering }
-        _tree-counter(counter(heading), named.at("level", default: 1), get_numbering)
+        _tree-counter(counter(heading), named.at("level", default: 1), get_numbering, none)
     } else if matches(Arguments(Literal(page)), args) {
         // Track page counter
         let get_numbering = () => if page.numbering == none { _default-numbering } else { page.numbering }
-        _tree-counter(counter(page), 1, get_numbering)
-    } else if matches(Arguments(Function), args) or matches(Arguments(Function, numbering: Union(Str, Function)), args) {
+        _tree-counter(counter(page), 1, get_numbering, none)
+    } else if (
+        matches(Arguments(Function), args)
+            or matches(Arguments(Function, numbering: Union(Str, Function)), args)
+            or matches(Arguments(Function, default: Int), args)
+            or matches(Arguments(Function, numbering: Union(Str, Function), default: Int), args)
+    ) {
         // New counter
         let (symbol,) = pos
         let some-numbering = named.at("numbering", default: "1.1")
-        _tree-counter(safe-counter(symbol), 1, () => some-numbering)
+        let default = named.at("default", default: 0)
+        _tree-counter(safe-counter(symbol), 1, () => some-numbering, default)
     } else if (
         matches(Arguments(Counter, level: Int), args)
             or matches(Arguments(Counter, level: Int, numbering: Union(Str, Function)), args)
@@ -159,7 +191,7 @@
         // Track existing counter
         let (count,) = pos
         let some-numbering = named.at("numbering", default: "1.1")
-        _tree-counter(count, named.at("level"), () => some-numbering)
+        _tree-counter(count, named.at("level"), () => some-numbering, none)
     } else {
         panic-fmt(
             "Received invalid arguments `{}` that did not match any call signature for `tree-counter`.",
@@ -204,10 +236,10 @@
     context assert.eq((subcounter2.get)(), (9, 0))
     context (subcounter2.update)(4)
     context assert.eq((subcounter2.get)(), (9, 4))
-    (root.update)(x=>x+10)
+    (root.update)(x => x + 10)
     context assert.eq((root.get)(), (19,))
     context assert.eq((subcounter2.get)(), (19, 0))
-    context (subcounter2.update)(x=>x+10)
+    (subcounter2.update)(x => x + 10)
     context assert.eq((subcounter2.get)(), (19, 10))
 }
 
@@ -246,10 +278,10 @@
     context assert.eq((subcounter2.get)(), (9, 0))
     context (subcounter2.update)(4)
     context assert.eq((subcounter2.get)(), (9, 4))
-    (root.update)(x=>x+10)
+    (root.update)(x => x + 10)
     context assert.eq((root.get)(), (19,))
     context assert.eq((subcounter2.get)(), (19, 0))
-    context (subcounter2.update)(x=>x+10)
+    (subcounter2.update)(x => x + 10)
     context assert.eq((subcounter2.get)(), (19, 10))
 }
 
@@ -289,10 +321,10 @@
     context assert.eq((subcounter2.get)(), (9, 0, 0))
     context (subcounter2.update)(4)
     context assert.eq((subcounter2.get)(), (9, 0, 4))
-    (root.update)(x=>x+10)
+    (root.update)(x => x + 10)
     context assert.eq((root.get)(), (19, 0))
     context assert.eq((subcounter2.get)(), (19, 0, 0))
-    context (subcounter2.update)(x=>x+10)
+    (subcounter2.update)(x => x + 10)
     context assert.eq((subcounter2.get)(), (19, 0, 10))
 }
 
@@ -332,10 +364,10 @@
     context assert.eq((subcounter2.get)(), (9, 0, 0))
     context (subcounter2.update)(4)
     context assert.eq((subcounter2.get)(), (9, 0, 4))
-    (root.update)(x=>x+10)
+    (root.update)(x => x + 10)
     context assert.eq((root.get)(), (19, 0))
     context assert.eq((subcounter2.get)(), (19, 0, 0))
-    context (subcounter2.update)(x=>x+10)
+    (subcounter2.update)(x => x + 10)
     context assert.eq((subcounter2.get)(), (19, 0, 10))
 }
 
@@ -392,12 +424,12 @@
     (root.update)(9)
     context assert.eq((root.get)(), (9, 0, 0))
     context assert.eq((subcounter2.get)(), (9, 0, 0, 0))
-    context (subcounter2.update)(4)
+    (subcounter2.update)(4)
     context assert.eq((subcounter2.get)(), (9, 0, 0, 4))
-    (root.update)(x=>x+10)
+    (root.update)(x => x + 10)
     context assert.eq((root.get)(), (19, 0, 0))
     context assert.eq((subcounter2.get)(), (19, 0, 0, 0))
-    context (subcounter2.update)(x=>x+10)
+    (subcounter2.update)(x => x + 10)
     context assert.eq((subcounter2.get)(), (19, 0, 0, 10))
 }
 
@@ -413,7 +445,7 @@
 
     (root.update)(9)
     context assert.eq((root.get)(), (9,))
-    (root.update)(x=>x+10)
+    (root.update)(x => x + 10)
     context assert.eq((root.get)(), (19,))
 }
 
@@ -464,10 +496,10 @@
     context assert.eq((subcounter2.get)(), (9, 0))
     context (subcounter2.update)(4)
     context assert.eq((subcounter2.get)(), (9, 4))
-    (root.update)(x=>x+10)
+    (root.update)(x => x + 10)
     context assert.eq((root.get)(), (19,))
     context assert.eq((subcounter2.get)(), (19, 0))
-    context (subcounter2.update)(x=>x+10)
+    (subcounter2.update)(x => x + 10)
     context assert.eq((subcounter2.get)(), (19, 10))
 }
 
@@ -489,11 +521,55 @@
     context assert.eq((sub2.get)(), (9, 0, 0))
     context (sub2.update)(4)
     context assert.eq((sub2.get)(), (9, 0, 4))
-    (root.update)(x=>x+10)
+    (root.update)(x => x + 10)
     context assert.eq((root.get)(), (19,))
     context assert.eq((sub2.get)(), (19, 0, 0))
-    context (sub2.update)(x=>x+10)
+    (sub2.update)(x => x + 10)
     context assert.eq((sub2.get)(), (19, 0, 10))
+}
+
+#let test-default() = {
+    let root = tree-counter(()=>{}, default: 3)
+    context assert.eq((root.get)(), (3,))
+    (root.step)()
+    context assert.eq((root.get)(), (4,))
+    (root.step)()
+    context assert.eq((root.get)(), (5,))
+    (root.update)(7)
+    context assert.eq((root.get)(), (7,))
+    (root.update)(12)
+    context assert.eq((root.get)(), (12,))
+    (root.step)()
+    context assert.eq((root.get)(), (13,))
+    (root.update)(x=>calc.pow(x, 2))
+    context assert.eq((root.get)(), (169,))
+    (root.step)()
+    context assert.eq((root.get)(), (170,))
+
+    let s = (root.subcounter)(()=>{}, default: -3)
+    context assert.eq((s.get)(), (170, -3))
+    (s.step)()
+    context assert.eq((s.get)(), (170, -2))
+    (s.step)()
+    context assert.eq((s.get)(), (170, -1))
+    (s.update)(5)
+    context assert.eq((s.get)(), (170, 5))
+    (s.update)(x=>calc.pow(x, 2))
+    context assert.eq((s.get)(), (170, 25))
+    (root.step)()
+    context assert.eq((s.get)(), (171, -3))
+    (s.update)(x=>calc.pow(x, 2))
+    context assert.eq((s.get)(), (171, 9))
+
+    let ss = (s.subcounter)(()=>{}, default: 4)
+    context assert.eq((ss.get)(), (171, 9, 4))
+    (ss.step)()
+    context assert.eq((ss.get)(), (171, 9, 5))
+    (s.step)()
+    context assert.eq((ss.get)(), (171, 10, 4))
+    (ss.update)(x=>calc.pow(x, 2))
+    context assert.eq((ss.get)(), (171, 10, 16))
+
 }
 
 #let test-doc() = {
@@ -534,4 +610,5 @@
 #test-heading-counter()
 #test-page-counter()
 #test-sub-subcounter()
+#test-default()
 #test-doc()
