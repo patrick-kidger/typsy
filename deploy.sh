@@ -1,12 +1,13 @@
 #!/bin/sh
 GITHUB_USERNAME=patrick-kidger
 
+BRANCH=dev
 set -e
-if output=$(git rev-parse --abbrev-ref HEAD) && [ "$output" != "main" ]; then
-  echo "Not on main branch."
+if output=$(git rev-parse --abbrev-ref HEAD) && [ "$output" != "$BRANCH" ]; then
+  echo "Not on $BRANCH branch."
   exit 1
 fi
-if output1=$(git rev-parse main) && output2=$(git rev-parse origin/main) && [ "$output1" != "$output2" ]; then
+if output1=$(git rev-parse "$BRANCH") && output2=$(git rev-parse origin/"$BRANCH") && [ "$output1" != "$output2" ]; then
   echo "Branch has not been pushed to remote."
   exit 1
 fi
@@ -24,6 +25,7 @@ if [ ! -d packages ]; then
   cd packages
   git sparse-checkout init
   git sparse-checkout set packages/preview/$PACKAGE_NAME
+  # This is the branch of the `packages` repository, not ours.
   git checkout main
   mkdir -p packages/preview/$PACKAGE_NAME
   cd ..
