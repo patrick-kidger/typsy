@@ -2,13 +2,13 @@
 ///
 /// Usage is
 /// ```typst
-/// #let counter1 = safecounter(()=>{})
-/// #let counter2 = safecounter(()=>{})
+/// #let counter1 = safe-counter(()=>{})
+/// #let counter2 = safe-counter(()=>{})
 /// // ...
 /// ```
 /// This relies on the fact that every anonymous function is a unique object, and we can use this to build a unique key
-/// for creating the counter. Note that you cannot wrap this into a `let safecounter2() = {safecounter(()=>{})}` because
-/// we need it to be a *different* anonymous function each time.
+/// for creating the counter. Note that you cannot wrap this into a `let safe-counter2() = {safe-counter(()=>{})}`
+/// because we need it to be a *different* anonymous function each time.
 ///
 /// *Returns:*
 ///

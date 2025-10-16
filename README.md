@@ -10,7 +10,7 @@ Provides tools for programming geeks:
 - classes (i.e. structs, custom types)
 - pattern matching
 - enums
-- safe counters (no need to choose a unique string)
+- safe `counter`s and `state`s (no need to choose a unique string)
 - trees-of-counters (i.e. subcounters)
 - string formatting
 - namespaces of objects that can be mutually referential
@@ -110,7 +110,7 @@ Also using the same pattern-matching capabilities as above:
 }
 ```
 
-### Safe counters
+### Safe counters and states
 
 Counters without needing to cross your fingers and hope that you're using a unique string each time:
 ```typst
@@ -120,6 +120,14 @@ Counters without needing to cross your fingers and hope that you're using a uniq
 #let my-counter2 = safe-counter(()=>{})
 // ...these are different counters!
 // (All anonymous functions have different identities to the compiler.)
+```
+
+Likewise safe states:
+```typst
+#import "@preview/typsy:0.2.0": safe-state
+#let my-state1 = safe-state(()=>{}, "hello")
+#let my-state2 = safe-state(()=>{}, "world")
+// These are different states. The second argument is the default value.
 ```
 
 ### Tree counters / subcounters

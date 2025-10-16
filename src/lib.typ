@@ -8,5 +8,6 @@
 )
 #import "./namespace.typ": namespace
 #import "./safe-counters.typ": safe-counter
+#import "./safe-state.typ": safe-state
 #import "./tree-counters.typ": tree-counter
 #import "./typecheck.typ": typecheck
