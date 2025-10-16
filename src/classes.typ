@@ -1,13 +1,14 @@
 #import "./format.typ": panic-fmt
-#import "./match.typ": Any, Dictionary, Function, Int, Pattern, Literal, Str, matches
+#import "./match.typ": Any, Class, Dictionary, Function, Int, Literal, Pattern, Str, matches, pattern-repr
 
 #let _checktype(name, value, pattern) = {
     if not matches(pattern, value) {
         panic-fmt(
-            "For `{}`, expected pattern `{}`, received `{}`.",
+            "For `{}`, expected `{}`, received `{}` of type `{}`.",
             name,
-            repr(pattern),
+            pattern-repr(pattern),
             repr(value),
+            repr(type(value)),
         )
     }
 }
@@ -30,8 +31,6 @@
     // `tag`.
     out + Dictionary(meta: Dictionary(cls: Dictionary(new: Literal(new), ..Any), ..Any), ..Any)
 }
-// Used for pattern-matching class objects themselves.
-#let Class = Dictionary(__typsy_sentinel_is_class: Literal(true), ..Any)
 
 #let _class_or_namespace(name: none, fields: none, methods: none, tag: none, call_on_dict: none) = {
     if name != none {
@@ -43,6 +42,13 @@
     let reserved_fields = ("meta",)
     for (argname, pattern) in fields.pairs() {
         _checktype(argname, argname, Str)
+        if type(pattern) == type {
+            panic-fmt(
+                "For `{}`, received a type annotation `{}`, but expected a pattern. For example, you should write `class(fields: (x: Int))` rather than `class(fields: (x: int))`. This was a breaking change between typsy:0.1.0 and typsy:0.2.0",
+                argname,
+                repr(pattern),
+            )
+        }
         _checktype(argname, pattern, Pattern)
         if methods_keys.contains(argname) {
             panic-fmt("`{}` is present in both `fields` and `methods`", argname)
@@ -292,4 +298,11 @@
     assert(matches(Class, class(fields: (x: Int))))
     assert(not matches(Class, 4.0))
     assert(not matches(Class, (name: "hi")))
+}
+
+#let test-pattern-match-class-doc() = {
+    let Adder = class(fields: (x: Int), methods: (foo: (self, y) => self.x + y))
+    assert(matches(Class, Adder))
+    let adder = (Adder.new)(x: 3)
+    assert(matches(Adder, adder))
 }

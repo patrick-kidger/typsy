@@ -1,12 +1,12 @@
 #import "./format.typ"
-#import "./format.typ": panic-fmt
+#import "./format.typ": fmt, panic-fmt
 
 /// Checks if `obj` matches the `pattern`.
 ///
 /// *Examples:*
 ///
 /// ```typst
-/// matches(Array(int), (3, 4, 5, "not an int")) // false
+/// matches(Array(Int), (3, 4, 5, "not an int")) // false
 /// ```
 ///
 /// ```typst
@@ -101,52 +101,86 @@
     panic-fmt("Did not match any case. Value was `{}`.", repr(obj))
 }
 
-#let _match(match) = (__typsy_sentinel_match: (match: match))
-#let _match_type(typ) = _match(obj => type(obj) == typ)
+/// Pretty-prints a pattern object.
+///
+/// *Example:*
+///
+/// `pattern-repr(Dictionary(x: Int, ..Any)) == "Dictionary(x: Int, ..Any)`
+#let pattern-repr(pattern) = pattern.__typsy_sentinel_match.repr
+
+#let _match(match, repr) = (__typsy_sentinel_match: (match: match, repr: repr))
+#let _match_type(typ, repr) = _match(obj => type(obj) == typ, repr)
 
 //
 // Basic types
 //
 
-#let Any = _match(obj => true)
-#let Bool = _match_type(bool)
-#let Bytes = _match_type(bytes)
-#let Content = _match_type(content)
-#let Counter = _match_type(counter)
-#let Datetime = _match_type(datetime)
-#let Decimal = _match_type(decimal)
-#let Duration = _match_type(duration)
-#let Float = _match_type(float)
-#let Function = _match_type(function)  // Just a simple type as there is no way to verify its signature.
-#let Int = _match_type(int)
-#let Label = _match_type(label)
-#let Location = _match_type(location)
-#let Module = _match_type(module)
-#let Never = _match(obj => false)  // Useful extra addition
-#let None = _match(obj => obj == none)
-#let Ratio = _match_type(ratio)
-#let Regex = _match_type(regex)
-#let Selector = _match_type(selector)
-#let Str = _match_type(str)
-#let Symbol = _match_type(symbol)
-#let Type = _match_type(type)
-#let Version = _match_type(version)
-/// Matches pattern objects themselves. Does *not* go via `Dictionary` because we're actually looking for the sentinel
-// key that `Dictionary` uses to identify its default value.
-#let Pattern = _match(x => (
-    type(x) == dictionary
-        and x.keys() == ("__typsy_sentinel_match",)
-        and type(x.__typsy_sentinel_match) == dictionary
-        and x.__typsy_sentinel_match.keys() == ("match",)
-        and type(x.__typsy_sentinel_match.match) == function
-))
-
+#let Any = _match(obj => true, "Any")
+#let Bool = _match_type(bool, "Bool")
+#let Bytes = _match_type(bytes, "Bytes")
+#let Content = _match_type(content, "Content")
+#let Counter = _match_type(counter, "Counter")
+#let Datetime = _match_type(datetime, "Datetime")
+#let Decimal = _match_type(decimal, "Decimal")
+#let Duration = _match_type(duration, "Duration")
+#let Float = _match_type(float, "Float")
+#let Function = _match_type(function, "Function")  // Just a simple type as there is no way to verify its signature.
+#let Int = _match_type(int, "Int")
+#let Label = _match_type(label, "Label")
+#let Location = _match_type(location, "Location")
+#let Module = _match_type(module, "Module")
+#let Never = _match(obj => false, "Never")  // Useful extra addition
+#let None = _match(obj => obj == none, "None")
+#let Ratio = _match_type(ratio, "Ratio")
+#let Regex = _match_type(regex, "Regex")
+#let Selector = _match_type(selector, "Selector")
+#let Str = _match_type(str, "Str")
+#let Symbol = _match_type(symbol, "Symbol")
+#let Type = _match_type(type, "Type")
+#let Version = _match_type(version, "Version")
 
 //
 // Generic types
 //
 
 #let _unpack(fn) = x => fn(..x)
+#let _generic-repr(generic, args) = {
+    let out = ()
+    let variadic = none
+    let pos = none
+    let named = none
+    for x in args.pos() {
+        out.push(pattern-repr(x))
+    }
+    for (name, val) in args.named() {
+        if name == "__typsy_sentinel_match" {
+            variadic = val.repr
+        } else if name == "__typsy_sentinel_pos" {
+            pos = pattern-repr(val)
+        } else if name == "__typsy_sentinel_named" {
+            named = pattern-repr(val)
+        } else {
+            out.push(fmt("{}: {}", name, pattern-repr(val)))
+        }
+    }
+    if pos != none {
+        out.push(fmt("..Pos({})", pos))
+    }
+    if named != none {
+        out.push(fmt("..Named({})", named))
+    }
+    if variadic != none {
+        out.push(fmt("..{}", variadic))
+    }
+    if out.len() == 0 {
+        generic + "()"
+    } else {
+        fmt("{}({})", generic, out.join(", "))
+    }
+}
+#let _with-repr(pattern, repr) = {
+    _match(pattern.__typsy_sentinel_match.match, repr)
+}
 
 /// *Usage:*
 ///
@@ -161,19 +195,26 @@
 #let Array(..eltypes) = {
     let pos = eltypes.pos()
     let named = eltypes.named()
+    let array-repr = () => _generic-repr("Array", eltypes)
     if named.len() == 0 {
-        _match(obj => type(obj) == array and pos.len() == obj.len() and pos.zip(obj).all(_unpack(matches)))
+        _match(
+            obj => type(obj) == array and pos.len() == obj.len() and pos.zip(obj).all(_unpack(matches)),
+            array-repr(),
+        )
     } else {
         if named.keys() == ("__typsy_sentinel_match",) {
             if pos.len() == 0 and named == Any {
-                _match_type(array) // Fastpath
+                _match_type(array, array-repr()) // Fastpath
             } else {
-                _match(obj => (
-                    type(obj) == array
-                        and pos.len() <= obj.len()
-                        and pos.zip(obj.slice(0, pos.len()), exact: true).all(_unpack(matches))
-                        and obj.slice(pos.len()).all(matches.with(named))
-                ))
+                _match(
+                    obj => (
+                        type(obj) == array
+                            and pos.len() <= obj.len()
+                            and pos.zip(obj.slice(0, pos.len()), exact: true).all(_unpack(matches))
+                            and obj.slice(pos.len()).all(matches.with(named))
+                    ),
+                    array-repr(),
+                )
             }
         } else {
             panic-fmt(
@@ -201,21 +242,28 @@
             repr(valtypes.pos().len()),
         )
     }
+    let dictionary-repr = () => _generic-repr("Dictionary", valtypes)
     let named = valtypes.named()
     let valtype = (
         __typsy_sentinel_match: named.remove("__typsy_sentinel_match", default: Never.__typsy_sentinel_match),
     )
-    if valtype == Any and named.len() == 0 { return _match_type(dictionary) } // Fastpath
+    if valtype == Any and named.len() == 0 { return _match_type(dictionary, dictionary-repr()) } // Fastpath
     if valtype == Any and named.len() == 1 {
         // Fastpath for a particularly common case.
         let ((key, pat),) = named.pairs()
-        return _match(obj => type(obj) == dictionary and obj.keys().contains(key) and matches(pat, obj.at(key)))
+        return _match(
+            obj => type(obj) == dictionary and obj.keys().contains(key) and matches(pat, obj.at(key)),
+            dictionary-repr(),
+        )
     }
-    _match(obj => (
-        type(obj) == dictionary
-            and obj.pairs().all(kv => matches(named.at(kv.at(0), default: valtype), kv.at(1)))
-            and named.keys().all(n => obj.keys().contains(n))
-    ))
+    _match(
+        obj => (
+            type(obj) == dictionary
+                and obj.pairs().all(kv => matches(named.at(kv.at(0), default: valtype), kv.at(1)))
+                and named.keys().all(n => obj.keys().contains(n))
+        ),
+        dictionary-repr(),
+    )
 }
 /// For use with `Arguments`.
 #let Pos(eltype) = (__typsy_sentinel_pos: eltype)
@@ -235,6 +283,7 @@
 /// arguments using `..Pos(Foo)` and variadic named arguments using `..Named(Foo)`, and variadic positional+named
 /// arguments via `..Foo`.
 #let Arguments(..args) = {
+    let arguments-repr = () => _generic-repr("Arguments", args)
     let named = args.named()
 
     let var = named.remove("__typsy_sentinel_match", default: auto)
@@ -273,14 +322,17 @@
         }
     }
 
-    _match(obj => type(obj) == arguments and matches(pos, obj.pos()) and matches(named, obj.named()))
+    _match(obj => type(obj) == arguments and matches(pos, obj.pos()) and matches(named, obj.named()), arguments-repr())
 }
 /// *Usage:*
 ///
 /// - `State(Int)` would match `state("foo", 4)`
 ///
 /// That is, the pattern specifies the value of the state.
-#let State(statetype) = _match(obj => type(obj) == state and matches(statetype, obj.get()))
+#let State(statetype) = _match(
+    obj => type(obj) == state and matches(statetype, obj.get()),
+    fmt("State({})", pattern-repr(statetype)),
+)
 
 //
 // Miscellaneous
@@ -297,7 +349,15 @@
     if named.len() != 0 {
         panic-fmt("`Literal` should only be called with positional arguments. Got keywords `{}`.", repr(named.keys()))
     }
-    _match(obj => values.pos().contains(obj))
+    let literal-repr = ("Literal(",)
+    for (i, val) in values.pos().enumerate() {
+        if i != 0 {
+            literal-repr.push(", ")
+        }
+        literal-repr.push(repr(val))
+    }
+    literal-repr.push(")")
+    _match(obj => values.pos().contains(obj), literal-repr.join(""))
 }
 /// *Usage:*
 ///
@@ -309,8 +369,33 @@
     if named.len() != 0 {
         panic-fmt("`Union` should only be called with positional arguments. Got keywords `{}`.", repr(named.keys()))
     }
-    _match(obj => values.pos().any(v => matches(v, obj)))
+    _match(obj => values.pos().any(v => matches(v, obj)), _generic-repr("Union", values))
 }
+/// Matches pattern objects themselves. Does *not* go via `Dictionary` because we're actually looking for the sentinel
+// key that `Dictionary` uses to identify its default value.
+#let Pattern = _match(
+    x => (
+        type(x) == dictionary
+            and x.keys() == ("__typsy_sentinel_match",)
+            and type(x.__typsy_sentinel_match) == dictionary
+            and x.__typsy_sentinel_match.keys() == ("match", "repr")
+            and type(x.__typsy_sentinel_match.match) == function
+            and type(x.__typsy_sentinel_match.repr) == str
+    ),
+    "Pattern",
+)
+
+/// Used for pattern-matching class objects themselves. Not to be confused with matching class instances.
+///
+/// *Example:*
+///
+/// ```typst
+/// #let Adder = class(fields: (x: Int), methods: (foo: (self, y)=>self.x+y))
+/// #assert(matches(Class, Adder))
+/// #let adder = (Adder.new)(x: 3)
+/// #assert(matches(Adder, adder))
+/// ```
+#let Class = _with-repr(Dictionary(__typsy_sentinel_is_class: Literal(true), ..Any), "Class")
 /// Takes a pattern, and additionally requires that a function must return `true` in order for values to satisfy the
 /// pattern.
 ///
@@ -339,7 +424,10 @@
 /// - predicate (function): a function `<satisfies pattern> -> bool`. It will only be called on items that already
 ///     match `pattern`.
 #let Refine(pattern, predicate) = {
-    _match(obj => matches(pattern, obj) and predicate(obj))
+    _match(
+        obj => matches(pattern, obj) and predicate(obj),
+        fmt("Refine({}, {})", pattern-repr(pattern), repr(predicate)),
+    )
 }
 
 #let panic-on-type() = {
@@ -639,3 +727,84 @@
 #let panic-on-no-pattern-match() = {
     match(3, case(Float, () => 4), case(Str, () => 5))
 }
+
+#let test-pattern-repr-basic() = {
+    assert.eq(pattern-repr(Any), "Any")
+    assert.eq(pattern-repr(Bool), "Bool")
+    assert.eq(pattern-repr(Bytes), "Bytes")
+    assert.eq(pattern-repr(Content), "Content")
+    assert.eq(pattern-repr(Counter), "Counter")
+    assert.eq(pattern-repr(Datetime), "Datetime")
+    assert.eq(pattern-repr(Decimal), "Decimal")
+    assert.eq(pattern-repr(Duration), "Duration")
+    assert.eq(pattern-repr(Float), "Float")
+    assert.eq(pattern-repr(Function), "Function")
+    assert.eq(pattern-repr(Int), "Int")
+    assert.eq(pattern-repr(Label), "Label")
+    assert.eq(pattern-repr(Location), "Location")
+    assert.eq(pattern-repr(Module), "Module")
+    assert.eq(pattern-repr(Never), "Never")
+    assert.eq(pattern-repr(None), "None")
+    assert.eq(pattern-repr(Ratio), "Ratio")
+    assert.eq(pattern-repr(Regex), "Regex")
+    assert.eq(pattern-repr(Selector), "Selector")
+    assert.eq(pattern-repr(Str), "Str")
+    assert.eq(pattern-repr(Symbol), "Symbol")
+    assert.eq(pattern-repr(Type), "Type")
+    assert.eq(pattern-repr(Version), "Version")
+}
+
+#let test-pattern-repr-array() = {
+    assert.eq(pattern-repr(Array()), "Array()")
+    assert.eq(pattern-repr(Array(Int)), "Array(Int)")
+    assert.eq(pattern-repr(Array(Int, Str)), "Array(Int, Str)")
+    assert.eq(pattern-repr(Array(..Any)), "Array(..Any)")
+    assert.eq(pattern-repr(Array(Int, ..Any)), "Array(Int, ..Any)")
+    assert.eq(pattern-repr(Array(Int, Str, ..Any)), "Array(Int, Str, ..Any)")
+}
+
+#let test-pattern-repr-dictionary() = {
+    assert.eq(pattern-repr(Dictionary()), "Dictionary()")
+    assert.eq(pattern-repr(Dictionary(x: Int)), "Dictionary(x: Int)")
+    assert.eq(pattern-repr(Dictionary(x: Int, y: Str)), "Dictionary(x: Int, y: Str)")
+    assert.eq(pattern-repr(Dictionary(..Ratio)), "Dictionary(..Ratio)")
+    assert.eq(pattern-repr(Dictionary(x: Int, ..Ratio)), "Dictionary(x: Int, ..Ratio)")
+    assert.eq(pattern-repr(Dictionary(x: Int, y: Str, ..Ratio)), "Dictionary(x: Int, y: Str, ..Ratio)")
+}
+
+#let test-pattern-repr-arguments() = {
+    assert.eq(pattern-repr(Arguments()), "Arguments()")
+    assert.eq(pattern-repr(Arguments(Int)), "Arguments(Int)")
+    assert.eq(pattern-repr(Arguments(Int, Str)), "Arguments(Int, Str)")
+    assert.eq(pattern-repr(Arguments(x: Int)), "Arguments(x: Int)")
+    assert.eq(pattern-repr(Arguments(x: Int, y: Str)), "Arguments(x: Int, y: Str)")
+    assert.eq(pattern-repr(Arguments(Str, x: Int)), "Arguments(Str, x: Int)")
+    assert.eq(pattern-repr(Arguments(x: Int, ..Pos(Str))), "Arguments(x: Int, ..Pos(Str))")
+    assert.eq(pattern-repr(Arguments(x: Int, ..Named(Str))), "Arguments(x: Int, ..Named(Str))")
+    assert.eq(pattern-repr(Arguments(x: Int, ..Any)), "Arguments(x: Int, ..Any)")
+    assert.eq(
+        pattern-repr(Arguments(Bool, x: Int, ..Pos(Ratio), ..Named(Str))),
+        "Arguments(Bool, x: Int, ..Pos(Ratio), ..Named(Str))",
+    )
+}
+
+#let test-pattern-repr-unusual() = {
+    // state, literal, union, pattern, class, refine
+    assert.eq(pattern-repr(State(Int)), "State(Int)")
+
+    assert.eq(pattern-repr(Literal()), "Literal()")
+    assert.eq(pattern-repr(Literal(3)), "Literal(3)")
+    assert.eq(pattern-repr(Literal(3, "hi")), "Literal(3, \"hi\")")
+
+    assert.eq(pattern-repr(Union()), "Union()")
+    assert.eq(pattern-repr(Union(Int)), "Union(Int)")
+    assert.eq(pattern-repr(Union(Int, Str)), "Union(Int, Str)")
+
+    assert.eq(pattern-repr(Pattern), "Pattern")
+    assert.eq(pattern-repr(Class), "Class")
+
+    let refine-repr = pattern-repr(Refine(Int, x=>x>0))
+    assert(refine-repr.starts-with("Refine(Int, "))
+    assert(refine-repr.ends-with(")"))
+}
+
