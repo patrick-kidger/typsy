@@ -20,7 +20,7 @@ Provides tools for programming geeks:
 
 Typst will autodownload packages on import:
 ```typst
-#import "@preview/typsy:0.2.0"
+#import "@preview/typsy:0.2.1"
 ```
 
 ## What's in the box?
@@ -29,7 +29,7 @@ Typst will autodownload packages on import:
 
 Classes with fields and methods:
 ```typst
-#import "@preview/typsy:0.2.0": class, Int
+#import "@preview/typsy:0.2.1": class, Int
 
 #let Adder = class(
     fields: (x: Int),
@@ -45,7 +45,7 @@ Classes with fields and methods:
 
 Simple type checking:
 ```typst
-#import "@preview/typsy:0.2.0": Array, Int, matches
+#import "@preview/typsy:0.2.1": Array, Int, matches
 
 // Fixed-length case.
 #matches(Array(Int, Int), (3, 4)) // true
@@ -55,7 +55,7 @@ Simple type checking:
 
 More complicated match-case statements:
 ```typst
-#import "@preview/typsy:0.2.0": Arguments, Int, Str, case, match, matches
+#import "@preview/typsy:0.2.1": Arguments, Int, Str, case, match, matches
 
 // Option 1: if/else
 #let fn-with-multiple-signatures(..args) = {
@@ -92,7 +92,7 @@ Observe the capitalisation. All patterns are capitalised to distinguish them fro
 
 Also using the same pattern-matching capabilities as above:
 ```typst
-#import "@preview/typsy:0.2.0": case, class, enumeration, match, Int
+#import "@preview/typsy:0.2.1": case, class, enumeration, match, Int
 
 #let Shape = enumeration(
     Rectangle: class(fields: (height: Int, width: Int)),
@@ -114,7 +114,7 @@ Also using the same pattern-matching capabilities as above:
 
 Counters without needing to cross your fingers and hope that you're using a unique string each time:
 ```typst
-#import "@preview/typsy:0.2.0": safe-counter
+#import "@preview/typsy:0.2.1": safe-counter
 
 #let my-counter1 = safe-counter(()=>{})
 #let my-counter2 = safe-counter(()=>{})
@@ -124,7 +124,7 @@ Counters without needing to cross your fingers and hope that you're using a uniq
 
 Likewise safe states:
 ```typst
-#import "@preview/typsy:0.2.0": safe-state
+#import "@preview/typsy:0.2.1": safe-state
 #let my-state1 = safe-state(()=>{}, "hello")
 #let my-state2 = safe-state(()=>{}, "world")
 // These are different states. The second argument is the default value.
@@ -134,7 +134,7 @@ Likewise safe states:
 
 Create trees of counters, including using existing counters as starting points. This is particularly useful for creating theorem counters that increment with the heading.
 ```typst
-#import "@preview/typsy:0.2.0": tree-counter
+#import "@preview/typsy:0.2.1": tree-counter
 
 // Set up counters
 #let heading-counter = tree-counter(heading, level: 1)
@@ -157,7 +157,7 @@ Create trees of counters, including using existing counters as starting points. 
 
 Rust-like string formatting:
 ```typst
-#import "@preview/typsy:0.2.0": fmt, panic-fmt
+#import "@preview/typsy:0.2.1": fmt, panic-fmt
 
 #let msg = fmt("Invalid input `{}`, expected `{}`.", foo, bar)
 
@@ -169,7 +169,7 @@ Rust-like string formatting:
 
 Wrap functions to check their inputs and outputs. This builds on top of the pattern-matching capablities above.
 ```typst
-#import "@preview/typsy:0.2.0": Arguments, typecheck
+#import "@preview/typsy:0.2.1": Arguments, typecheck
 
 #let add_integers = typecheck(Arguments(Int, Int), Int, (x, y) => x + y)
 #let five = add_integers(2, 3)  // ok
@@ -180,7 +180,7 @@ Wrap functions to check their inputs and outputs. This builds on top of the patt
 
 Build a namespace by providing lambda functions which return their object. Access any object in a namespace via `ns(object-name)`:
 ```typst
-#import "@preview/typsy:0.2.0": namespace
+#import "@preview/typsy:0.2.1": namespace
 
 #let ns = namespace(
     foo: ns => {

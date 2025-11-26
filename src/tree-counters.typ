@@ -50,7 +50,7 @@
                 safe-counter((parent_index, symbol))
             }
             let display(_) = {
-                (self.display)() + get_raw_counter().display(numbering)
+                (self.display)() + if numbering == "" {""} else {get_raw_counter().display(numbering)}
             }
             let get(_) = (self.get)() + _offset(get_raw_counter().get(), default)
             // `step` needs `context` as it needs to resolve its parent counter via `parent.get()`.
@@ -70,7 +70,14 @@
 /// - get_numbering (function): ()->union(str,function)
 /// - default (none, int): default value for the counter.
 #let _tree-counter(raw_counter, level, get_numbering, default) = {
-    let display = self => numbering(get_numbering(), ..(self.get)())
+    let display = self => {
+        let n = get_numbering()
+        if n == "" {
+            ""
+        } else {
+            numbering(n, ..(self.get)())
+        }
+    }
     let get(self) = {
         let raw_get = _offset(raw_counter.get(), default)
         let diff = level - raw_get.len()
@@ -87,7 +94,9 @@
     (TreeCounter.new)(display: display, get: get, step: step, update: update)
 }
 
-#let _default-numbering = "1.1"
+#let _get-numbering(named, x) = {
+    () => named.at("numbering", default: if x == none or x.numbering == none { "1.1" } else { x.numbering })
+}
 
 /// Creates the root node of a tree-of-counters. Subcounters are then created using its `.subcounter` method.
 ///
@@ -107,12 +116,16 @@
 /// This can be called in a few distinct ways, corresponding to the following call signatures:
 ///
 /// 1. To create a brand-new counter: `tree-counter(()=>{})`
-///     - with non-default numbering: `tree-counter(()=>{}, numbering: "A.")`.
 ///     - with non-zero default: `tree-counter(()=>{}, default: 3)`.
-/// 2. Track an existing counter at some level: `tree-counter(some-counter, level: )`
-///     - with non-default numbering: `tree-counter(some-counter, level: , numbering: "A.")`.
-/// 3. To track the `heading` counter at some level: `tree-counter(heading, level: )`.
+/// 2. Track an existing counter at some level: `tree-counter(some-counter)`
+///     - with non-one level: `tree-counter(some-counter, level: 2)`.
+/// 3. To track the `heading` counter: `tree-counter(heading)`.
+///     - with non-one level: `tree-counter(heading, level: 2)`.
 /// 4. To track the `page` counter: `tree-counter(page)`.
+/// 5. To track the `figure` counter: `tree-counter(figure)`.
+///
+/// In all cases then `numbering` can be passed, e.g. `tree-counter(()=>{}, numbering: "A.")`, to use a non-default
+/// numbering.
 ///
 /// Notes:
 ///
@@ -165,33 +178,56 @@
 #let tree-counter(..args) = {
     let pos = args.pos()
     let named = args.named()
-    if matches(Arguments(Literal(heading), level: Int), args) or matches(Arguments(Literal(heading)), args) {
+    let heading_matches = Union(
+        Arguments(Literal(heading), numbering: Union(Str, Function), level: Int),
+        Arguments(Literal(heading), numbering: Union(Str, Function)),
+        Arguments(Literal(heading), level: Int),
+        Arguments(Literal(heading)),
+    )
+    let page_matches = Union(
+        Arguments(Literal(page), numbering: Union(Str, Function)),
+        Arguments(Literal(page)),
+    )
+    let figure_matches = Union(
+        Arguments(Literal(figure), numbering: Union(Str, Function)),
+        Arguments(Literal(figure)),
+    )
+    let new_matches = Union(
+        Arguments(Function, numbering: Union(Str, Function), default: Int),
+        Arguments(Function, numbering: Union(Str, Function)),
+        Arguments(Function, default: Int),
+        Arguments(Function),
+    )
+    let existing_matches = Union(
+        Arguments(Counter, numbering: Union(Str, Function), level: Int),
+        Arguments(Counter, numbering: Union(Str, Function)),
+        Arguments(Counter, level: Int),
+        Arguments(Counter),
+    )
+
+    if matches(heading_matches, args) {
         // Track heading counter
-        let get_numbering = () => if heading.numbering == none { _default-numbering } else { heading.numbering }
-        _tree-counter(counter(heading), named.at("level", default: 1), get_numbering, none)
-    } else if matches(Arguments(Literal(page)), args) {
+        let get-numbering = _get-numbering(named, heading)
+        _tree-counter(counter(heading), named.at("level", default: 1), get-numbering, none)
+    } else if matches(page_matches, args) {
         // Track page counter
-        let get_numbering = () => if page.numbering == none { _default-numbering } else { page.numbering }
-        _tree-counter(counter(page), 1, get_numbering, none)
-    } else if (
-        matches(Arguments(Function), args)
-            or matches(Arguments(Function, numbering: Union(Str, Function)), args)
-            or matches(Arguments(Function, default: Int), args)
-            or matches(Arguments(Function, numbering: Union(Str, Function), default: Int), args)
-    ) {
+        let get-numbering = _get-numbering(named, page)
+        _tree-counter(counter(page), 1, get-numbering, none)
+    } else if matches(figure_matches, args) {
+        // Track figure counter
+        let get-numbering = _get-numbering(named, figure)
+        _tree-counter(counter(figure), 1, get-numbering, none)
+    } else if matches(new_matches, args) {
         // New counter
         let (symbol,) = pos
-        let some-numbering = named.at("numbering", default: "1.1")
+        let get-numbering = _get-numbering(named, none)
         let default = named.at("default", default: 0)
-        _tree-counter(safe-counter(symbol), 1, () => some-numbering, default)
-    } else if (
-        matches(Arguments(Counter, level: Int), args)
-            or matches(Arguments(Counter, level: Int, numbering: Union(Str, Function)), args)
-    ) {
+        _tree-counter(safe-counter(symbol), 1, get-numbering, default)
+    } else if matches(existing_matches, args) {
         // Track existing counter
         let (count,) = pos
-        let some-numbering = named.at("numbering", default: "1.1")
-        _tree-counter(count, named.at("level"), () => some-numbering, none)
+        let get-numbering = _get-numbering(named, none)
+        _tree-counter(count, named.at("level", default: 1), get-numbering, none)
     } else {
         panic-fmt(
             "Received invalid arguments `{}` that did not match any call signature for `tree-counter`.",
@@ -503,6 +539,68 @@
     context assert.eq((subcounter2.get)(), (19, 10))
 }
 
+#let test-figure-counter() = {
+    counter(figure).update(1)
+    // Test that we match the default numbering (when `figure.numbering = none`).
+    context assert.eq(counter(figure).display(), "1")
+    counter(figure).step()
+    context assert.eq(counter(figure).display(), "2")
+    let root = tree-counter(figure)
+    context assert.eq((root.get)(), (2,))
+    context assert.eq((root.display)(), "2")
+    (root.step)()
+    context assert.eq((root.get)(), (3,))
+    context assert.eq((root.display)(), "3")
+    (root.step)()
+    // Test that we track any changes to `figure.numbering`.
+    set figure(numbering: "A.")
+    context assert.eq((root.get)(), (4,))
+    context assert.eq((root.display)(), "D.")
+
+    let subcounter1 = (root.subcounter)(() => {})
+    context assert.eq((subcounter1.get)(), (4, 0))
+    context assert.eq((subcounter1.display)(), "D..0")
+    (subcounter1.step)()
+    context assert.eq((subcounter1.get)(), (4, 1))
+    context assert.eq((subcounter1.display)(), "D..1")
+    (root.step)()
+    context assert.eq((subcounter1.get)(), (5, 0))
+    context assert.eq((subcounter1.display)(), "E..0")
+
+    let subcounter2 = (root.subcounter)(() => {}, numbering: "A")
+    context assert.eq((subcounter2.get)(), (5, 0))
+    context assert.eq((subcounter2.display)(), "E.-")
+    (subcounter2.step)()
+    context assert.eq((subcounter2.get)(), (5, 1))
+    context assert.eq((subcounter2.display)(), "E.A")
+    (root.step)()
+    context assert.eq((subcounter2.get)(), (6, 0))
+    context assert.eq((subcounter2.display)(), "F.-")
+
+    // Test that we track any changes to `heading.numbering`.
+    set figure(numbering: "1")
+    context assert.eq((subcounter2.display)(), "6-")
+
+    (root.update)(9)
+    context assert.eq((root.get)(), (9,))
+    context assert.eq((subcounter2.get)(), (9, 0))
+    context (subcounter2.update)(4)
+    context assert.eq((subcounter2.get)(), (9, 4))
+    (root.update)(x => x + 10)
+    context assert.eq((root.get)(), (19,))
+    context assert.eq((subcounter2.get)(), (19, 0))
+    (subcounter2.update)(x => x + 10)
+    context assert.eq((subcounter2.get)(), (19, 10))
+}
+
+#let test-empty-numbering() = {
+    let root = tree-counter(()=>{}, numbering: "")
+    let sub1 = (root.subcounter)(()=>{}, numbering: "(a)")
+    context assert.eq((sub1.display)(), "(-)")
+    (sub1.step)()
+    context assert.eq((sub1.display)(), "(a)")
+}
+
 #let test-sub-subcounter() = {
     let root = tree-counter(() => {})
     let sub1 = (root.subcounter)(() => {})
@@ -609,6 +707,8 @@
 #test-wrap-counter-with-numbering()
 #test-heading-counter()
 #test-page-counter()
+#test-figure-counter()
+#test-empty-numbering()
 #test-sub-subcounter()
 #test-default()
 #test-doc()

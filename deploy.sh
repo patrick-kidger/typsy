@@ -1,7 +1,7 @@
 #!/bin/sh
 GITHUB_USERNAME=patrick-kidger
 
-BRANCH=dev
+BRANCH=main
 set -e
 if output=$(git rev-parse --abbrev-ref HEAD) && [ "$output" != "$BRANCH" ]; then
   echo "Not on $BRANCH branch."
@@ -27,14 +27,20 @@ if [ ! -d packages ]; then
   git sparse-checkout set packages/preview/$PACKAGE_NAME
   # This is the branch of the `packages` repository, not ours.
   git checkout main
-  mkdir -p packages/preview/$PACKAGE_NAME
+  cd ..
+else
+  cd packages
+  git checkout main
   cd ..
 fi
 if [ -d packages/packages/preview/$PACKAGE_NAME/$VERSION ]; then
   echo "$PACKAGE_NAME:$VERSION already exists"
   exit 1
 fi
-mkdir packages/packages/preview/$PACKAGE_NAME/$VERSION
+mkdir -p packages/packages/preview/$PACKAGE_NAME/$VERSION
+if [ -d src/target ]; then
+  rmdir src/target  # Spurious directory created by tinymist, don't need to copy that over.
+fi
 cp -r typst.toml README.md LICENSE src packages/packages/preview/$PACKAGE_NAME/$VERSION/
 cd packages
 BRANCH_NAME=$PACKAGE_NAME-$VERSION
