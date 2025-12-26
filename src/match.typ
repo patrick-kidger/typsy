@@ -115,9 +115,12 @@
 // Basic types
 //
 
+#let Alignment = _match_type(alignment, "Alignment")
+#let Angle = _match_type(angle, "Angle")
 #let Any = _match(obj => true, "Any")
 #let Bool = _match_type(bool, "Bool")
 #let Bytes = _match_type(bytes, "Bytes")
+#let Color = _match_type(color, "Color")
 #let Content = _match_type(content, "Content")
 #let Counter = _match_type(counter, "Counter")
 #let Datetime = _match_type(datetime, "Datetime")
@@ -125,17 +128,22 @@
 #let Duration = _match_type(duration, "Duration")
 #let Float = _match_type(float, "Float")
 #let Function = _match_type(function, "Function")  // Just a simple type as there is no way to verify its signature.
+#let Gradient = _match_type(gradient, "Gradient")
 #let Int = _match_type(int, "Int")
 #let Label = _match_type(label, "Label")
+#let Length = _match_type(length, "Length")
 #let Location = _match_type(location, "Location")
 #let Module = _match_type(module, "Module")
 #let Never = _match(obj => false, "Never")  // Useful extra addition
 #let None = _match(obj => obj == none, "None")
 #let Ratio = _match_type(ratio, "Ratio")
+#let Relative = _match_type(relative, "Relative")
 #let Regex = _match_type(regex, "Regex")
 #let Selector = _match_type(selector, "Selector")
 #let Str = _match_type(str, "Str")
+#let Stroke = _match_type(stroke, "Stroke")
 #let Symbol = _match_type(symbol, "Symbol")
+#let Tiling = _match_type(tiling, "Tiling")
 #let Type = _match_type(type, "Type")
 #let Version = _match_type(version, "Version")
 
@@ -443,11 +451,23 @@
     assert(matches(Any, 1))
     assert(matches(Any, [some content]))
 
+    assert(matches(Alignment, left))
+    assert(matches(Alignment, horizon))
+    assert(matches(Alignment, top))
+    assert(not matches(Alignment, true))
+
+    assert(matches(Angle, 50deg))
+    assert(not matches(Angle, 50em))
+
     assert(matches(Bool, true))
     assert(not matches(Bool, "not a bool"))
 
+
     assert(matches(Bytes, bytes("hello")))
     assert(not matches(Bytes, "hello"))
+
+    assert(matches(Color, red))
+    assert(not matches(Color, "hello"))
 
     assert(matches(Content, [hello there]))
     assert(not matches(Content, "hello there"))
@@ -468,12 +488,18 @@
     assert(matches(Function, () => {}))
     assert(not matches(Function, ()))
 
+    assert(matches(Gradient, gradient.linear(..color.map.viridis)))
+    assert(not matches(Gradient, 3))
+
     assert(matches(Int, 3))
     assert(not matches(Int, 3.0))
     assert(not matches(Int, decimal("3")))
 
     assert(matches(Label, <hi>))
     assert(not matches(Label, "hi"))
+
+    assert(matches(Length, 1em))
+    assert(not matches(Length, 1deg))
 
     assert(matches(Module, format))
     assert(not matches(Module, "format"))
@@ -490,14 +516,23 @@
     assert(matches(Regex, regex("foo")))
     assert(not matches(Regex, "foo"))
 
+    assert(matches(Relative, 1em + 150%))
+    assert(not matches(Relative, 1em))
+
     assert(matches(Selector, heading.where(level: 1)))
     assert(not matches(Selector, heading))
 
     assert(matches(Str, "hi"))
     assert(not matches(Str, bytes("hi")))
 
+    assert(matches(Stroke, stroke()))
+    assert(not matches(Stroke, "hi"))
+
     assert(matches(Symbol, symbol("x")))
     assert(not matches(Symbol, "x"))
+
+    assert(matches(Tiling, tiling()["hi"]))
+    assert(not matches(Tiling, "hi"))
 
     assert(matches(Type, int))
     assert(matches(Type, str))
