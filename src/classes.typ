@@ -306,3 +306,20 @@
     let adder = (Adder.new)(x: 3)
     assert(matches(Adder, adder))
 }
+
+#let test-class-is-pattern() = {
+    let Foo = class()
+    assert(matches(Pattern, Foo))
+}
+
+#let test-class-is-valid-annotation() = {
+    let Foo = class()
+    let Bar = class(fields: (foo: Foo))
+    let bar = (Bar.new)(foo: (Foo.new)())
+}
+
+#let panic-on-invalid-arg-with-class-annotation() = {
+    let Foo = class()
+    let Bar = class(fields: (foo: Foo))
+    let bar = (Bar.new)(foo: 3)
+}

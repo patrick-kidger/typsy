@@ -1,4 +1,4 @@
-#import "./match.typ": case, match, matches
+#import "./match.typ": case, match, matches, Pattern, Union
 #import "./format.typ": panic-fmt
 #import "./classes.typ": Class, Int, class
 
@@ -50,7 +50,9 @@
                 + "to distinguish structurally-identical classes.",
         )
     }
-    items.named()
+    // Adding on `Union` (=merging dictionaries) makes enums valid as patterns, and in particular valid as field types
+    // for `class`es.
+    items.named() + Union(..items.named().values())
 }
 
 #let test-pattern-match() = {
@@ -85,4 +87,41 @@
 
 #let test-no-panic-on-tagged-classes() = {
     enumeration(foo: class(tag: () => {}), bar: class(tag: () => {}))
+}
+
+#let test-enum-is-pattern() = {
+    let MyEnum = enumeration(
+        Foo: class(name: "Foo"),
+        Bar: class(name: "Bar"),
+    )
+    assert(matches(Pattern, MyEnum))
+    assert(matches(Pattern, MyEnum.Foo))
+    assert(matches(Pattern, MyEnum.Bar))
+}
+
+#let test-enum-is-valid-annotation() = {
+    let MyEnum = enumeration(
+        Foo: class(name: "Foo"),
+        Bar: class(name: "Bar"),
+    )
+    let Bar = class(fields: (foo: MyEnum))
+    let bar = (Bar.new)(foo: (MyEnum.Foo.new)())
+}
+
+#let panic-on-invalid-arg-with-enum-annotation1() = {
+    let MyEnum = enumeration(
+        Foo: class(name: "Foo"),
+        Bar: class(name: "Bar"),
+    )
+    let Bar = class(fields: (foo: MyEnum))
+    let bar = (Bar.new)(foo: 3)
+}
+
+#let panic-on-invalid-arg-with-enum-annotation2() = {
+    let MyEnum = enumeration(
+        Foo: class(name: "Foo"),
+        Bar: class(name: "Bar"),
+    )
+    let Bar = class(fields: (foo: MyEnum))
+    let bar = (Bar.new)(foo: MyEnum)
 }

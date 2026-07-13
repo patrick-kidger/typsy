@@ -384,7 +384,7 @@
 #let Pattern = _match(
     x => (
         type(x) == dictionary
-            and x.keys() == ("__typsy_sentinel_match",)
+            and x.keys().contains("__typsy_sentinel_match")
             and type(x.__typsy_sentinel_match) == dictionary
             and x.__typsy_sentinel_match.keys() == ("match", "repr")
             and type(x.__typsy_sentinel_match.match) == function
