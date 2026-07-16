@@ -1,5 +1,7 @@
 #import "./format.typ": panic-fmt
-#import "./match.typ": Any, Class, Dictionary, Function, Int, Literal, Pattern, Str, matches, pattern-repr
+#import "./match.typ": (
+    Any, Class, Dictionary, Function, Int, Literal, Pattern, Str, matches, pattern-alias, pattern-repr,
+)
 
 #let _checktype(name, value, pattern) = {
     if not matches(pattern, value) {
@@ -29,7 +31,13 @@
     // Make it possible to use classes in pattern-matching.
     // We inspect specifically the `new` field as that should be enough to get uniqueness; in particular it closes over
     // `tag`.
-    out + Dictionary(meta: Dictionary(cls: Dictionary(new: Literal(new), ..Any), ..Any), ..Any)
+    let pattern = Dictionary(meta: Dictionary(cls: Dictionary(new: Literal(new), ..Any), ..Any), ..Any)
+    let pattern = if name != none {
+        pattern-alias(pattern, name)
+    } else {
+        pattern
+    }
+    out + pattern
 }
 
 #let _class_or_namespace(name: none, fields: none, methods: none, tag: none, call_on_dict: none) = {
@@ -307,8 +315,13 @@
     assert(matches(Adder, adder))
 }
 
-#let test-class-is-pattern() = {
+#let test-unnamed-class-is-pattern() = {
     let Foo = class()
+    assert(matches(Pattern, Foo))
+}
+
+#let test-named-class-is-pattern() = {
+    let Foo = class(name: "hello")
     assert(matches(Pattern, Foo))
 }
 

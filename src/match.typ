@@ -186,8 +186,8 @@
         fmt("{}({})", generic, out.join(", "))
     }
 }
-#let _with-repr(pattern, repr) = {
-    _match(pattern.__typsy_sentinel_match.match, repr)
+#let pattern-alias(pattern, repr) = {
+    pattern + _match(pattern.__typsy_sentinel_match.match, repr)
 }
 
 /// *Usage:*
@@ -403,7 +403,7 @@
 /// #let adder = (Adder.new)(x: 3)
 /// #assert(matches(Adder, adder))
 /// ```
-#let Class = _with-repr(Dictionary(__typsy_sentinel_is_class: Literal(true), ..Any), "Class")
+#let Class = pattern-alias(Dictionary(__typsy_sentinel_is_class: Literal(true), ..Any), "Class")
 /// Takes a pattern, and additionally requires that a function must return `true` in order for values to satisfy the
 /// pattern.
 ///
