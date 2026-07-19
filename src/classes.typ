@@ -40,14 +40,16 @@
     out + pattern
 }
 
-#let _class_or_namespace(name: none, fields: none, methods: none, tag: none, call_on_dict: none) = {
+#let _reserved = ("meta",) + _make_cls(() => none, none, (:), (:), none).keys()
+
+#let _class_or_namespace(name: none, fields: none, methods: none, tag: none, call_on_dict: none, unit_is_self: false) = {
     if name != none {
         _checktype("name", name, Str)
     }
     _checktype("fields", fields, Dictionary(..Any))
     _checktype("methods", methods, Dictionary(..Any))
+    let unit_is_self = unit_is_self and fields.len() == 0
     let methods_keys = methods.keys()
-    let reserved_fields = ("meta",)
     for (argname, pattern) in fields.pairs() {
         _checktype(argname, argname, Str)
         if type(pattern) == type {
@@ -61,14 +63,14 @@
         if methods_keys.contains(argname) {
             panic-fmt("`{}` is present in both `fields` and `methods`", argname)
         }
-        if reserved_fields.contains(argname) {
+        if _reserved.contains(argname) {
             panic-fmt("`{}` is reserved and cannot be used in `fields`.", argname)
         }
     }
     for (methodname, method) in methods.pairs() {
         _checktype(methodname, methodname, Str)
         _checktype(methodname, method, Function)
-        if reserved_fields.contains(methodname) {
+        if _reserved.contains(methodname) {
             panic-fmt("`{}` is reserved and cannot be used in `methods`.", methodname)
         }
     }
@@ -94,16 +96,29 @@
             repr_pieces.push(name)
         }
         repr_pieces.push(repr(self_dict))
+        let cls = _make_cls(new, name, fields, methods, tag)
         let meta = (
             // Provide `cls` to allow easy self-recursion.
             // Mutual recursion should be handled by using a `namespace`.
-            cls: _make_cls(new, name, fields, methods, tag),
+            cls: cls,
             repr: repr_pieces.join(""),
         )
         self_dict.insert("meta", meta)
-        call_on_dict(self_dict)
+        let instance = call_on_dict(self_dict)
+        if unit_is_self {
+            // Unit class: the class is its own instance.
+            instance + cls
+        } else {
+            instance
+        }
     }
-    _make_cls(new, name, fields, methods, tag)
+    let cls = _make_cls(new, name, fields, methods, tag)
+    if unit_is_self {
+        // Unit class: the class is its own instance.
+        (cls.new)()
+    } else {
+        cls
+    }
 }
 
 #let _call_on_dict(self_dict) = {
@@ -163,7 +178,7 @@
 ///     the same fields and methods will compare equal. If provided then (as all anonymous functions are distinct), this
 ///     will make the class unique.
 #let class(name: none, fields: (:), methods: (:), tag: none) = {
-    _class_or_namespace(name: name, fields: fields, methods: methods, tag: tag, call_on_dict: _call_on_dict)
+    _class_or_namespace(name: name, fields: fields, methods: methods, tag: tag, call_on_dict: _call_on_dict, unit_is_self: true)
 }
 
 #let test-doc() = {
@@ -335,4 +350,59 @@
     let Foo = class()
     let Bar = class(fields: (foo: Foo))
     let bar = (Bar.new)(foo: 3)
+}
+
+#let test-unit-class-is-self-instance() = {
+    let MyClass = class(name: "MyClass")
+    let instance = (MyClass.new)()
+
+    // The class is its own instance.
+    assert.eq(instance, MyClass)
+
+    // Pattern-matching requirements.
+    assert(matches(Pattern, MyClass))
+    assert(matches(Class, MyClass))
+    assert(matches(MyClass, instance))
+    assert(matches(MyClass, MyClass))
+}
+
+#let test-unit-class-tagged() = {
+    let A = class(tag: () => {})
+    let B = class(tag: () => {})
+    assert.ne(A, B)
+    assert(matches(A, (A.new)()))
+    assert(not matches(A, (B.new)()))
+    assert(not matches(B, (A.new)()))
+    assert(matches(B, (B.new)()))
+}
+
+#let panic-on-unit-class-method-collides-with-class-key() = {
+    class(methods: (new: (self) => "oops"))
+}
+
+#let test-unit-class-with-methods() = {
+    let Greeter = class(
+        name: "Greeter",
+        methods: (greet: (self) => "hello"),
+    )
+    let g = (Greeter.new)()
+    assert(matches(Pattern, Greeter))
+    assert(matches(Class, Greeter))
+    assert(matches(Greeter, g))
+    assert(matches(Greeter, Greeter))
+}
+
+#let test-unit-class-new-is-idempotent() = {
+    // Calling `new` on a unit class always returns the same thing, so
+    // generic code that calls `(some_class.new)()` works with unit classes.
+    let Foo = class(name: "Foo", tag: () => {})
+    assert.eq(Foo, (Foo.new)())
+    assert.eq(Foo, (Foo.new)())
+    assert.eq((Foo.new)(), (Foo.new)())
+
+    // Remains a valid class: `new` is still callable, fields/methods accessible.
+    assert.eq(Foo.name, "Foo")
+    assert.eq(Foo.fields, (:))
+    assert(matches(Class, (Foo.new)()))
+    assert(matches(Pattern, (Foo.new)()))
 }

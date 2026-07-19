@@ -125,3 +125,23 @@
     let Bar = class(fields: (foo: MyEnum))
     let bar = (Bar.new)(foo: MyEnum)
 }
+
+#let test-unit-class-as-enum-variant() = {
+    let MyEnum = enumeration(
+        FOO: class(name: "foo"),
+        BAR: class(name: "bar"),
+    )
+    let MyClass = class(fields: (baz: MyEnum))
+
+    // Can pass class objects directly as instances, without needing `(FOO.new)()`.
+    let my_instance = (MyClass.new)(baz: MyEnum.FOO)
+
+    // Equality comparison works directly against the class object.
+    assert.eq(my_instance.baz, MyEnum.FOO)
+    assert.ne(my_instance.baz, MyEnum.BAR)
+
+    // Pattern matching works too.
+    assert(matches(MyEnum.FOO, my_instance.baz))
+    assert(not matches(MyEnum.BAR, my_instance.baz))
+    assert(matches(MyEnum, my_instance.baz))
+}
