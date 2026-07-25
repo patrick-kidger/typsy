@@ -152,6 +152,9 @@
 //
 
 #let _unpack(fn) = x => fn(..x)
+// Whether `pat` is an `Optional(...)` pattern. Such patterns are meaningful inside `Dictionary`/`Arguments`, where they
+// mark a key as not required to be present (but still type-checked if it is).
+#let _is-optional(pat) = type(pat) == dictionary and pat.at("__typsy_sentinel_optional", default: false)
 #let _generic-repr(generic, args) = {
     let out = ()
     let variadic = none
@@ -256,7 +259,7 @@
         __typsy_sentinel_match: named.remove("__typsy_sentinel_match", default: Never.__typsy_sentinel_match),
     )
     if valtype == Any and named.len() == 0 { return _match_type(dictionary, dictionary-repr()) } // Fastpath
-    if valtype == Any and named.len() == 1 {
+    if valtype == Any and named.len() == 1 and not _is-optional(named.values().first()) {
         // Fastpath for a particularly common case.
         let ((key, pat),) = named.pairs()
         return _match(
@@ -264,11 +267,13 @@
             dictionary-repr(),
         )
     }
+    // `Optional(...)` keys are not required to be present, but are still checked when they are.
+    let required = named.keys().filter(n => not _is-optional(named.at(n)))
     _match(
         obj => (
             type(obj) == dictionary
                 and obj.pairs().all(kv => matches(named.at(kv.at(0), default: valtype), kv.at(1)))
-                and named.keys().all(n => obj.keys().contains(n))
+                and required.all(n => obj.keys().contains(n))
         ),
         dictionary-repr(),
     )
@@ -404,6 +409,44 @@
 /// #assert(matches(Adder, adder))
 /// ```
 #let Class = pattern-alias(Dictionary(__typsy_sentinel_is_class: Literal(true), ..Any), "Class")
+/// Marks a named argument or dictionary value as optional.
+///
+/// This is primarily useful inside `Arguments` and `Dictionary`: an `Optional(...)` key is not required to be present,
+/// but is still type-checked against the inner pattern when it *is* present.
+///
+/// *Examples:*
+///
+/// ```typst
+/// #let f = typecheck(
+///     Arguments(name: Optional(Str), age: Optional(Int)),
+///     Content,
+///     (name: "John", age: 25) => [Hi #name, how is it being #age?],
+/// )
+/// #f()                       // ok
+/// #f(name: "David")          // ok
+/// #f(age: 13)                // ok
+/// #f(name: "David", age: 13) // ok
+/// ```
+///
+/// ```typst
+/// #matches(Dictionary(x: Optional(Int)), (:))     // true
+/// #matches(Dictionary(x: Optional(Int)), (x: 3))  // true
+/// #matches(Dictionary(x: Optional(Int)), (x: "")) // false
+/// ```
+///
+/// Outside of a `Dictionary`/`Arguments` context there is no notion of a "missing" value, so a standalone
+/// `Optional(pattern)` simply matches whatever `pattern` matches.
+///
+/// **Returns:**
+///
+/// A new pattern.
+///
+/// **Arguments:**
+///
+/// - pattern (Pattern): the pattern the value must satisfy when present.
+#let Optional(pattern) = {
+    pattern-alias(pattern, fmt("Optional({})", pattern-repr(pattern))) + (__typsy_sentinel_optional: true)
+}
 /// Takes a pattern, and additionally requires that a function must return `true` in order for values to satisfy the
 /// pattern.
 ///
@@ -744,6 +787,59 @@
     assert(matches(Union(Array(..Int), Array(..Str)), (3,)))
     assert(not matches(Union(Array(..Int), Array(..Str)), (3.0,)))
     assert(matches(Union(Array(..Union(Int, Float)), Array(..Str)), (3.0,)))
+}
+
+#let test-optional-standalone() = {
+    // When a value is present, `Optional` behaves like its inner pattern.
+    assert(matches(Optional(Str), "hi"))
+    assert(not matches(Optional(Str), 3))
+    assert(matches(Optional(Int), 3))
+    assert(not matches(Optional(Int), "hi"))
+}
+
+#let test-optional-dictionary() = {
+    let pat = Dictionary(name: Optional(Str), age: Optional(Int))
+    assert(matches(pat, (:)))
+    assert(matches(pat, (name: "David")))
+    assert(matches(pat, (age: 13)))
+    assert(matches(pat, (name: "David", age: 13)))
+    // Present-but-wrong-type is still rejected.
+    assert(not matches(pat, (name: 3)))
+    assert(not matches(pat, (age: "old")))
+
+    // Mixing required and optional keys.
+    let mixed = Dictionary(id: Int, name: Optional(Str))
+    assert(matches(mixed, (id: 1)))
+    assert(matches(mixed, (id: 1, name: "David")))
+    assert(not matches(mixed, (name: "David")))
+    assert(not matches(mixed, (id: 1, name: 2)))
+
+    // Optional together with the `..Any` fastpath.
+    let with-rest = Dictionary(name: Optional(Str), ..Any)
+    assert(matches(with-rest, (:)))
+    assert(matches(with-rest, (name: "David")))
+    assert(matches(with-rest, (age: 13)))
+    assert(not matches(with-rest, (name: 3)))
+}
+
+#let test-optional-arguments() = {
+    let id(..args) = args
+    let pat = Arguments(name: Optional(Str), age: Optional(Int))
+    assert(matches(pat, id()))
+    assert(matches(pat, id(name: "David")))
+    assert(matches(pat, id(age: 13)))
+    assert(matches(pat, id(name: "David", age: 13)))
+    assert(not matches(pat, id(name: 3)))
+}
+
+#let test-optional-repr() = {
+    assert.eq(pattern-repr(Optional(Str)), "Optional(Str)")
+    assert.eq(pattern-repr(Optional(Int)), "Optional(Int)")
+    assert.eq(
+        pattern-repr(Arguments(name: Optional(Str), age: Optional(Int))),
+        "Arguments(name: Optional(Str), age: Optional(Int))",
+    )
+    assert.eq(pattern-repr(Dictionary(name: Optional(Str))), "Dictionary(name: Optional(Str))")
 }
 
 #let test-refine() = {
