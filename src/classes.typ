@@ -1,6 +1,6 @@
-#import "./format.typ": panic-fmt
+#import "./format.typ": fmt, panic-fmt
 #import "./match.typ": (
-    Any, Class, Dictionary, Function, Int, Literal, Pattern, Str, matches, pattern-alias, pattern-repr,
+    Any, Array, Class, Dictionary, Function, Int, Literal, Pattern, Str, matches, pattern-alias, pattern-repr,
 )
 
 #let _checktype(name, value, pattern) = {
@@ -52,7 +52,13 @@
     } else {
         pattern
     }
-    out + pattern
+    let cls = out + pattern
+    for (key, value) in cls.pairs() {
+        if key != "__typsy_sentinel_match" {
+            assert(not matches(Pattern, value), message: fmt("Internal error: class key `{}` must not be a Pattern.", key))
+        }
+    }
+    cls
 }
 
 #let _reserved = ("meta",) + _make_cls(() => none, none, (:), (:), (:), none).keys()
@@ -408,6 +414,18 @@
     assert(matches(Class, Adder))
     let adder = (Adder.new)(x: 3)
     assert(matches(Adder, adder))
+}
+
+#let test-class-spreads-into-container-patterns() = {
+    let Foo = class(name: "Foo", fields: (x: Int))
+    let foo1 = (Foo.new)(x: 1)
+    let foo2 = (Foo.new)(x: 1)
+    assert(matches(Pattern, Array(..Foo)))
+    assert(matches(Pattern, Dictionary(..Foo)))
+    assert(matches(Array(..Foo), (foo1, foo2)))
+    assert(matches(Dictionary(..Foo), ("one": foo1, "two": foo2)))
+    assert(not matches(Array(..Foo), (foo1, foo2, 4)))
+    assert(not matches(Dictionary(..Foo), ("one": foo1, "two": foo2, "three": 3)))
 }
 
 #let test-unnamed-class-is-pattern() = {

@@ -190,6 +190,20 @@
     pattern + _match(pattern.__typsy_sentinel_match.match, repr)
 }
 
+/// Matches pattern objects themselves. Does *not* go via `Dictionary` because we're actually looking for the sentinel
+// key that `Dictionary` uses to identify its default value.
+#let Pattern = _match(
+    x => (
+        type(x) == dictionary
+            and x.keys().contains("__typsy_sentinel_match")
+            and type(x.__typsy_sentinel_match) == dictionary
+            and x.__typsy_sentinel_match.keys() == ("match", "repr")
+            and type(x.__typsy_sentinel_match.match) == function
+            and type(x.__typsy_sentinel_match.repr) == str
+    ),
+    "Pattern",
+)
+
 /// *Usage:*
 ///
 /// - `Array(Int)` is a pattern that would accept `(3,)` but not `(3, 4)`.
@@ -203,6 +217,17 @@
 #let Array(..eltypes) = {
     let pos = eltypes.pos()
     let named = eltypes.named()
+    if named.keys().contains("__typsy_sentinel_match") {
+        for key in named.keys() {
+            if key != "__typsy_sentinel_match" {
+                let value = named.at(key)
+                if matches(Pattern, value) == false {
+                    let _ = named.remove(key)
+                }
+            }
+        }
+    }
+    let eltypes = arguments(..pos, ..named)
     let array-repr = () => _generic-repr("Array", eltypes)
     if named.len() == 0 {
         _match(
@@ -250,8 +275,19 @@
             repr(valtypes.pos().len()),
         )
     }
-    let dictionary-repr = () => _generic-repr("Dictionary", valtypes)
     let named = valtypes.named()
+    if named.keys().contains("__typsy_sentinel_match") {
+        for key in named.keys() {
+            if key != "__typsy_sentinel_match" {
+                let value = named.at(key)
+                if matches(Pattern, value) == false {
+                    let _ = named.remove(key)
+                }
+            }
+        }
+    }
+    let valtypes = arguments(..named)
+    let dictionary-repr = () => _generic-repr("Dictionary", valtypes)
     let valtype = (
         __typsy_sentinel_match: named.remove("__typsy_sentinel_match", default: Never.__typsy_sentinel_match),
     )
@@ -379,20 +415,6 @@
     }
     _match(obj => values.pos().any(v => matches(v, obj)), _generic-repr("Union", values))
 }
-/// Matches pattern objects themselves. Does *not* go via `Dictionary` because we're actually looking for the sentinel
-// key that `Dictionary` uses to identify its default value.
-#let Pattern = _match(
-    x => (
-        type(x) == dictionary
-            and x.keys().contains("__typsy_sentinel_match")
-            and type(x.__typsy_sentinel_match) == dictionary
-            and x.__typsy_sentinel_match.keys() == ("match", "repr")
-            and type(x.__typsy_sentinel_match.match) == function
-            and type(x.__typsy_sentinel_match.repr) == str
-    ),
-    "Pattern",
-)
-
 /// Used for pattern-matching class objects themselves. Not to be confused with matching class instances.
 ///
 /// *Example:*
@@ -654,6 +676,7 @@
     assert(not matches(Array(..Never), (3,)))
     assert(matches(Array(..Array(Int)), ((3,), (4,), (5,))))
     assert(not matches(Array(..Array(Int)), ((3,), (4,), (5, 6))))
+    assert(matches(Array(..(__typsy_sentinel_match: Int.__typsy_sentinel_match, ignored: 3)), (3, 4)))
 
     assert(not matches(Array(Int, Str, ..Int), ()))
     assert(not matches(Array(Int, Str, ..Int), (3,)))
@@ -680,6 +703,7 @@
     assert(matches(Dictionary(..Str), (:)))
 
     assert(matches(Dictionary(..Int), (hi: 3, bye: 3)))
+    assert(matches(Dictionary(..(__typsy_sentinel_match: Int.__typsy_sentinel_match, ignored: 3)), (hi: 3)))
     assert(matches(Dictionary(..Any), (hi: 3, bye: 3)))
     assert(matches(Dictionary(..Any), (hi: 3, bye: "foo")))
     assert(matches(Dictionary(..Union(Int, Str)), (hi: 3, bye: "foo")))
