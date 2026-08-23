@@ -246,7 +246,7 @@
 #let Dictionary(..valtypes) = {
     if valtypes.pos().len() != 0 {
         panic-fmt(
-            "`Dictionary` should either be called with zero positional arguments. Got {} positional arguments instead.",
+            "`Dictionary` should be called with zero positional arguments. Got {} positional arguments instead.",
             repr(valtypes.pos().len()),
         )
     }
