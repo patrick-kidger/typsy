@@ -30,8 +30,8 @@
     args-type,
     return-type,
     fn,
-    invalid-args: args => fmt("Arguments `{}` do not match type annotation.", repr(args)),
-    invalid-return: (args, returnval) => fmt("Return value `{}` does not match type annotation.", repr(returnval)),
+    invalid-args: args => "Arguments do not match type annotation.",
+    invalid-return: (args, returnval) => "Return value does not match type annotation.",
 ) = {
     (..args) => {
         if not matches(args-type, args) {
