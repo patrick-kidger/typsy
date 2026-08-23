@@ -26,8 +26,23 @@
     out
 }
 
-#let _make_cls(new, name, fields, methods, tag) = {
-    let out = (new: new, name: name, fields: fields, methods: methods, tag: tag, __typsy_sentinel_is_class: true)
+#let _make_cls(new, name, fields, methods, classmethods, tag) = {
+    let out = (
+        new: new,
+        name: name,
+        fields: fields,
+        methods: methods,
+        classmethods: classmethods,
+        tag: tag,
+        __typsy_sentinel_is_class: true,
+    )
+    for (classmethodname, classmethod) in classmethods.pairs() {
+        let wrapped-classmethod(..args) = classmethod(
+            _make_cls(new, name, fields, methods, classmethods, tag),
+            ..args,
+        )
+        out.insert(classmethodname, wrapped-classmethod)
+    }
     // Make it possible to use classes in pattern-matching.
     // We inspect specifically the `new` field as that should be enough to get uniqueness; in particular it closes over
     // `tag`.
@@ -40,15 +55,25 @@
     out + pattern
 }
 
-#let _reserved = ("meta",) + _make_cls(() => none, none, (:), (:), none).keys()
+#let _reserved = ("meta",) + _make_cls(() => none, none, (:), (:), (:), none).keys()
 
-#let _class_or_namespace(name: none, fields: none, methods: none, tag: none, call_on_dict: none, unit_is_self: false) = {
+#let _class_or_namespace(
+    name: none,
+    fields: none,
+    methods: none,
+    classmethods: (:),
+    tag: none,
+    call_on_dict: none,
+    unit_is_self: false,
+) = {
     if name != none {
         _checktype("name", name, Str)
     }
     _checktype("fields", fields, Dictionary(..Any))
     _checktype("methods", methods, Dictionary(..Any))
+    _checktype("classmethods", classmethods, Dictionary(..Any))
     let unit_is_self = unit_is_self and fields.len() == 0
+    let fields_keys = fields.keys()
     let methods_keys = methods.keys()
     for (argname, pattern) in fields.pairs() {
         _checktype(argname, argname, Str)
@@ -74,6 +99,19 @@
             panic-fmt("`{}` is reserved and cannot be used in `methods`.", methodname)
         }
     }
+    for (classmethodname, fn) in classmethods.pairs() {
+        _checktype(classmethodname, classmethodname, Str)
+        _checktype(classmethodname, fn, Function)
+        if methods_keys.contains(classmethodname) {
+            panic-fmt("`{}` is present in both `methods` and `classmethods`", classmethodname)
+        }
+        if fields_keys.contains(classmethodname) {
+            panic-fmt("`{}` is present in both `fields` and `classmethods`", classmethodname)
+        }
+        if _reserved.contains(classmethodname) {
+            panic-fmt("`{}` is reserved and cannot be used in `classmethods`.", classmethodname)
+        }
+    }
     let new(..init_args) = {
         if init_args.pos().len() != 0 {
             panic-fmt("Do not call type constructors with positional arguments. Got `{}`", repr(init_args.pos()))
@@ -96,7 +134,7 @@
             repr_pieces.push(name)
         }
         repr_pieces.push(repr(self_dict))
-        let cls = _make_cls(new, name, fields, methods, tag)
+        let cls = _make_cls(new, name, fields, methods, classmethods, tag)
         let meta = (
             // Provide `cls` to allow easy self-recursion.
             // Mutual recursion should be handled by using a `namespace`.
@@ -112,7 +150,7 @@
             instance
         }
     }
-    let cls = _make_cls(new, name, fields, methods, tag)
+    let cls = _make_cls(new, name, fields, methods, classmethods, tag)
     if unit_is_self {
         // Unit class: the class is its own instance.
         (cls.new)()
@@ -174,11 +212,21 @@
 /// - name (none, str): an optional name for the class. Used in error messages.
 /// - fields (dictionary): a mapping str=>type defining the types of the arguments that must be passed at initialisation.
 /// - methods (dictionary): a mapping str=>function defining the methods available.
+/// - classmethods (dictionary): a mapping str=>function defining functions available on the class object. Each function
+///     receives the class object as its first argument.
 /// - tag (function): an optional place to add `class(..., tag: ()=>{})`. If not provided then all class objects with
 ///     the same fields and methods will compare equal. If provided then (as all anonymous functions are distinct), this
 ///     will make the class unique.
-#let class(name: none, fields: (:), methods: (:), tag: none) = {
-    _class_or_namespace(name: name, fields: fields, methods: methods, tag: tag, call_on_dict: _call_on_dict, unit_is_self: true)
+#let class(name: none, fields: (:), methods: (:), classmethods: (:), tag: none) = {
+    _class_or_namespace(
+        name: name,
+        fields: fields,
+        methods: methods,
+        classmethods: classmethods,
+        tag: tag,
+        call_on_dict: _call_on_dict,
+        unit_is_self: true,
+    )
 }
 
 #let test-doc() = {
@@ -197,6 +245,38 @@
     let ArgTest = class(fields: (x: Int))
     let foo = (ArgTest.new)(x: 3)
     assert.eq(foo.x, 3)
+}
+
+#let test-classmethod() = {
+    let Foo = class(
+        fields: (baz: Int),
+        classmethods: (from-bar: (cls, bar) => (cls.new)(baz: bar.baz)),
+    )
+    let foo = (Foo.from-bar)((baz: 3))
+    assert.eq(foo.baz, 3)
+    assert(matches(Foo, foo))
+}
+
+#let test-unit-class-classmethod() = {
+    let Foo = class(classmethods: (foo: cls => 3))
+    assert.eq((Foo.foo)(), 3)
+    assert.eq(((Foo.new)().foo)(), 3)
+}
+
+#let panic-on-classmethod-not-function() = {
+    class(classmethods: (foo: 3))
+}
+
+#let panic-on-classmethod-collides-with-field() = {
+    class(fields: (foo: Int), classmethods: (foo: cls => none))
+}
+
+#let panic-on-classmethod-collides-with-method() = {
+    class(methods: (foo: self => none), classmethods: (foo: cls => none))
+}
+
+#let panic-on-classmethod-is-reserved() = {
+    class(classmethods: (new: cls => none))
 }
 
 #let panic-on-basic() = {
