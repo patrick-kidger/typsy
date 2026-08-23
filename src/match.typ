@@ -152,6 +152,14 @@
 //
 
 #let _unpack(fn) = x => fn(..x)
+#let _optional-pattern(pattern) = {
+    if type(pattern) == dictionary and pattern.keys() == ("__typsy_sentinel_optional",) {
+        pattern.__typsy_sentinel_optional
+    } else {
+        auto
+    }
+}
+
 #let _generic-repr(generic, args) = {
     let out = ()
     let variadic = none
@@ -168,7 +176,13 @@
         } else if name == "__typsy_sentinel_named" {
             named = pattern-repr(val)
         } else {
-            out.push(fmt("{}: {}", name, pattern-repr(val)))
+            let inner = _optional-pattern(val)
+            let val-repr = if inner == auto {
+                pattern-repr(val)
+            } else {
+                fmt("Optional({})", pattern-repr(inner))
+            }
+            out.push(fmt("{}: {}", name, val-repr))
         }
     }
     if pos != none {
@@ -189,6 +203,9 @@
 #let pattern-alias(pattern, repr) = {
     pattern + _match(pattern.__typsy_sentinel_match.match, repr)
 }
+
+/// Marks a named `Dictionary` or `Arguments` entry as optional.
+#let Optional(pattern) = (__typsy_sentinel_optional: pattern)
 
 /// Matches pattern objects themselves. Does *not* go via `Dictionary` because we're actually looking for the sentinel
 // key that `Dictionary` uses to identify its default value.
@@ -295,16 +312,25 @@
     if valtype == Any and named.len() == 1 {
         // Fastpath for a particularly common case.
         let ((key, pat),) = named.pairs()
-        return _match(
-            obj => type(obj) == dictionary and obj.keys().contains(key) and matches(pat, obj.at(key)),
-            dictionary-repr(),
-        )
+        let inner = _optional-pattern(pat)
+        if inner == auto {
+            return _match(
+                obj => type(obj) == dictionary and obj.keys().contains(key) and matches(pat, obj.at(key)),
+                dictionary-repr(),
+            )
+        }
     }
     _match(
         obj => (
             type(obj) == dictionary
-                and obj.pairs().all(kv => matches(named.at(kv.at(0), default: valtype), kv.at(1)))
-                and named.keys().all(n => obj.keys().contains(n))
+                and obj.pairs().all(((key, val)) => {
+                    let pat = named.at(key, default: valtype)
+                    let inner = _optional-pattern(pat)
+                    matches(if inner == auto { pat } else { inner }, val)
+                })
+                and named.pairs().all(((key, pat)) => {
+                    _optional-pattern(pat) != auto or obj.keys().contains(key)
+                })
         ),
         dictionary-repr(),
     )
@@ -597,6 +623,14 @@
     assert(not matches(Arguments(Int, Str, foo: Int), id(3, "hi", foo: "hi")))
     assert(not matches(Arguments(Int, Str, foo: Int, bar: Array(Int)), id(3, "hi", foo: "hi")))
     assert(matches(Arguments(Int, Str, foo: Str, bar: Array(Int)), id(3, "hi", foo: "hi", bar: (3,))))
+
+    let optional = Arguments(Int, Int, asdf: Optional(Str), jkl: Optional(Str))
+    assert(matches(optional, id(3, 4)))
+    assert(matches(optional, id(3, 4, asdf: "a")))
+    assert(matches(optional, id(3, 4, jkl: "b")))
+    assert(matches(optional, id(3, 4, asdf: "a", jkl: "b")))
+    assert(not matches(optional, id(3, 4, asdf: 5)))
+    assert(not matches(optional, id(3, 4, other: "a")))
     assert(not matches(Arguments(Int, Str, foo: Int, bar: Array(Int)), id(3, "hi", foo: "hi", bar: (3.0,))))
 
     assert(matches(Arguments(..Any), id(3)))
@@ -826,6 +860,7 @@
     assert.eq(pattern-repr(Dictionary()), "Dictionary()")
     assert.eq(pattern-repr(Dictionary(x: Int)), "Dictionary(x: Int)")
     assert.eq(pattern-repr(Dictionary(x: Int, y: Str)), "Dictionary(x: Int, y: Str)")
+    assert.eq(pattern-repr(Dictionary(x: Optional(Int))), "Dictionary(x: Optional(Int))")
     assert.eq(pattern-repr(Dictionary(..Ratio)), "Dictionary(..Ratio)")
     assert.eq(pattern-repr(Dictionary(x: Int, ..Ratio)), "Dictionary(x: Int, ..Ratio)")
     assert.eq(pattern-repr(Dictionary(x: Int, y: Str, ..Ratio)), "Dictionary(x: Int, y: Str, ..Ratio)")
@@ -837,6 +872,7 @@
     assert.eq(pattern-repr(Arguments(Int, Str)), "Arguments(Int, Str)")
     assert.eq(pattern-repr(Arguments(x: Int)), "Arguments(x: Int)")
     assert.eq(pattern-repr(Arguments(x: Int, y: Str)), "Arguments(x: Int, y: Str)")
+    assert.eq(pattern-repr(Arguments(x: Optional(Int))), "Arguments(x: Optional(Int))")
     assert.eq(pattern-repr(Arguments(Str, x: Int)), "Arguments(Str, x: Int)")
     assert.eq(pattern-repr(Arguments(x: Int, ..Pos(Str))), "Arguments(x: Int, ..Pos(Str))")
     assert.eq(pattern-repr(Arguments(x: Int, ..Named(Str))), "Arguments(x: Int, ..Named(Str))")
