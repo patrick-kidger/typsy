@@ -124,6 +124,7 @@
         }
 
         let self_dict = (:)
+        let missing_fields = fields
         for (initname, value) in init_args.named().pairs() {
             let expected = fields.at(initname, default: auto)
             if expected == auto {
@@ -131,6 +132,10 @@
             }
             _checktype(initname, value, expected)
             self_dict.insert(initname, value)
+            missing_fields.remove(initname)
+        }
+        if missing_fields.len() != 0 {
+            panic-fmt("Missing fields at initialization: {}", repr(missing_fields.keys()))
         }
         for (initname, method) in methods.pairs() {
             self_dict.insert(initname, method)
@@ -288,6 +293,16 @@
 #let panic-on-basic() = {
     let ArgTest = class(fields: (x: Int))
     let foo = (ArgTest.new)(x: "not an int")
+}
+
+#let panic-on-missing-field1() = {
+    let MyClass = class(fields: (x: Int))
+    let _ = (MyClass.new)()
+}
+
+#let panic-on-missing-field2() = {
+    let MyClass = class(fields: (x: Int, y: Int))
+    let _ = (MyClass.new)(x: 3)
 }
 
 #let test-self-recursive() = {
