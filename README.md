@@ -169,11 +169,11 @@ Rust-like string formatting:
 
 Wrap functions to check their inputs and outputs. This builds on top of the pattern-matching capablities above.
 ```typst
-#import "@preview/typsy:0.2.4": Arguments, typecheck
+#import "@preview/typsy:0.2.5": Arguments, Int, typecheck
 
-#let add_integers = typecheck(Arguments(Int, Int), Int, (x, y) => x + y)
-#let five = add_integers(2, 3)  // ok
-#add_integers("hello ", "world")  // panic!
+#let add-integers = typecheck(Arguments(Int, Int), Int, (x, y) => x + y)
+#let five = add-integers(2, 3)  // ok
+#add-integers("hello ", "world")  // panic!
 ```
 
 ### Namespaces of mutually-referential objects
