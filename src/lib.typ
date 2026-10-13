@@ -2,7 +2,7 @@
 #import "./enumeration.typ": enumeration
 #import "./format.typ": fmt, panic-fmt
 #import "./match.typ": (
-    Alignment, Angle, Any, Arguments, Array, Bool, Bytes, Class, Content, Counter, Datetime, Decimal, Dictionary,
+    Alignment, Angle, Any, Arguments, Array, Bool, Bytes, Class, Color, Content, Counter, Datetime, Decimal, Dictionary,
     Duration, Float, Function, Gradient, Int, Label, Length, Literal, Location, Module, Named, Never, None, Optional,
     Pattern, Pos, Ratio, Refine, Regex, Relative, Selector, State, Str, Stroke, Symbol, Tiling, Type, Union, Version,
     case, match, matches, pattern-alias, pattern-repr,
